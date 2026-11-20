@@ -6,6 +6,6 @@
   "ignore": {
     "useGitignore": true,
     "useDefaultPatterns": true,
-    "customPatterns": ["deliverables/**", "patches/**", "*.zip"]
+    "customPatterns": ["deliverables/**", "patches/**", "*.zip", "patch_*.py"]
   }
 }

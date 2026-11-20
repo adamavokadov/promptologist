@@ -41,6 +41,9 @@ apps/web/src/                       main.tsx, App.tsx (shell, nav, theme, wake o
 scripts/deploy.mjs smoke.mjs pack-source.mjs docs_update.py   (docs_update.py = scripted CHANGELOG/HANDOFF maintenance)
 tests/core.test.ts pipeline.test.ts helpers.ts
 patches/                            applied patch scripts (see section 16)
+design.md                           canonical UI spec: «Ноябрь» brief v1.0 + Addendum A (mapping, contrast overrides, decisions D1-D5)
+agents.md, CLAUDE.md                operating manual for AI agents; CLAUDE.md imports agents.md for Claude Code
+docs/claude-project-instructions.md text pasted into the Claude Project custom instructions
 .github/workflows/ci.yml, .devcontainer/devcontainer.json, .editorconfig, .gitattributes, .nvmrc, repomix.config.json   repo hygiene
 ```
 
@@ -111,6 +114,7 @@ Skill checklist markers: a line in `## Validation Checklist` may contain `` `has
 10. Agent notifications are skipped silently without the required scope.
 11. Template `language` supports only ru|en: the Spanish agent-graph template is flagged EN, so sending it to the generator selects English output. Spanish output is not a supported language.
 12. Repomix excludes `package-lock.json` by default, so repomix packs do not show the lockfile; it must stay committed (`npm ci` needs it).
+13. Floating composer vs the Bitrix24 iframe auto-height (`vibe:resize`): `position: fixed` and `100vh` anchor to the full-height frame, not to the visible window, so the Brief's fixed composer cannot be built correctly until the placement iframe height behavior is confirmed (design.md A6, conflict C1, decision D4).
 
 ## 11. Runbook pointers
 Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: `node scripts/smoke.mjs --base http://127.0.0.1:$PORT --generate --jobs`.
@@ -133,6 +137,10 @@ Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: 
 15. The Karpathy-inspired agent-graph prompt (Opus 5.5) ships as a seed TEMPLATE, not as skill content: skills are fed only from whitelisted official vendor sources and are rewritten by the refresh agent, so third-party guidance would be lost or rejected. Seed templates are inserted by title at start (`seedAll`), so existing databases receive it automatically.
 16. The template body is kept in Spanish verbatim (only the `<prompt>` wrapper of the source note is dropped). Variables are lower-cased (`{{tarea}}`, ...) because `VAR_RE` accepts only `[a-z0-9_]`; `language` is `'en'` because templates support only ru/en.
 17. CHANGELOG.md and HANDOFF.md are updated only through `scripts/docs_update.py` (owner's standing rule); patch scripts import the same logic and are archived in `patches/`.
+18. Canonical UI is the «Ноябрь» design system (Minimal Editorial Workspace: light canvas, warm neutrals, one terracotta accent, floating composer). It supersedes the v1.0 neo-glassmorphism and is specified in `design.md`: Part I is the owner's brief v1.0 (formatting normalised, wording unchanged), Addendum A maps it onto this codebase and holds the overrides. The redesign is not implemented yet; the code still ships the glassmorphism UI.
+19. Brief concepts without a counterpart in this app are not invented: the eight-stage stepper has no real data source (agent run steps are not exposed by any API; generation progress is three transient client states) and the composer has no attachment or voice controls. The `Stepper` is built only if the owner assigns a data source (design.md A5, decision D3).
+20. The contrast audit of the Brief tokens against WCAG 2.2 AA produced proposed overrides (design.md A4): secondary and muted text, accent fill with white text, success and warning text, control borders, Grok identity dot. Brief hex values stay in Part I as the reference; implementation uses the overrides once the owner confirms (D5).
+21. `agents.md` is the operating manual for AI agents; `CLAUDE.md` imports it for Claude Code; `docs/claude-project-instructions.md` is the text pasted into the Claude Project custom instructions. Keep the three consistent.
 
 ## 13. Conventions
 English identifiers and comments; Russian only in `strings.ru.ts`, seed templates and Russian meta-prompts. No UI strings outside `strings.ru.ts`. SQL only via prepared statements. zod validates every input. Commit style: imperative, phase-scoped (`phase 4: ...`). No stubs in working scenarios.
@@ -157,3 +165,4 @@ Add `--dry-run` after the subcommand to preview a diff. Patch scripts live in `p
 ## 16. Patch log
 Applied patch scripts (newest last); sources in `patches/`.
 - 2026-11-20 2026-11-20-agent-graph-and-hygiene: agent-graph seed template, 9 seed templates in tests/smoke/docs, repo hygiene files, scripted docs tool
+- 2026-11-20 2026-11-20-design-system-docs: design.md (Ноябрь + Addendum A), agents.md, CLAUDE.md, Claude project instructions, docs placeholder cleanup

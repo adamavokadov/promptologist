@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 ## [Unreleased]
 
 ### Added
+- `design.md`: canonical «Ноябрь» design system (owner's AI-first brief v1.0, formatting normalised, wording unchanged) plus Addendum A: mapping to Promptologist screens, WCAG contrast audit with proposed token overrides, iframe/composer conflict, open decisions D1-D5, implementation map. The UI redesign itself is not implemented yet.
+- `agents.md`: operating manual for AI agents (language policy, hard rules, patch-script standard, Codespaces commands, UI QA, report format) and `CLAUDE.md` that imports it for Claude Code.
+- `docs/claude-project-instructions.md`: custom instructions text for the Claude Project.
+
+### Changed
+- README.md: project documents section; the Design bullet points to the target design system.
+- `repomix.config.json`: patch scripts in the repo root (`patch_*.py`) are excluded from packs.
+
+### Fixed
+- Removed placeholder entries (`...`, `id: summary`) that were written into CHANGELOG.md and HANDOFF.md by running the docs tool usage examples verbatim.
+
+## [1.1.0] - 2026-11-20
+
+### Added
 - Seed template «Граф узлов для Claude Code (по Karpathy, Opus 5.5)»: Spanish agent-graph prompt inspired by Andrej Karpathy's autoresearch (bounded nodes, deterministic code nodes, evidence gates, graph.md / checks.md / progress.md handoff) with variables `{{tarea}}`, `{{salida}}`, `{{checks}}`, `{{fuentes}}`, `{{alcance}}`, `{{limite}}`; flagged EN because template language supports only ru/en.
 - Tests: seed-template invariants (unique titles, valid variables, size limits) and a structure test for the agent-graph template.
 - Repository hygiene: `.editorconfig`, `.gitattributes`, `.nvmrc`, `.devcontainer/devcontainer.json` (Node 24, Python 3), `.github/workflows/ci.yml` (build and test on Node 22 and 24), `repomix.config.json`.
