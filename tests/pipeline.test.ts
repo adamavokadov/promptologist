@@ -10,6 +10,7 @@ import { setSettings } from '../apps/server/src/db.ts';
 import { resetRateLimits, clearIdentityCache } from '../apps/server/src/auth.ts';
 import { DAY_MS } from '../apps/server/src/util.ts';
 import { SYSTEM_IDS, type GenOptions } from '../shared/src/index.ts';
+import { SEED_TEMPLATES } from '../apps/server/src/seed/templates.ts';
 
 const opts = (o: Partial<GenOptions> = {}): GenOptions => ({ task_type: 'auto', detail: 'standard', assumptions_mode: 'assume', include_format: true, ...o });
 const RAW = 'Разобрать договор аренды и найти рисковые пункты';
@@ -207,10 +208,10 @@ describe('HTTP API', () => {
     expect(JSON.parse(r.body).error.code).toBe('authorization_required');
     expect((await app.inject({ url: '/api/skills', headers: U })).statusCode).toBe(200);
   });
-  it('lists 5 skills and 8 seed templates', async () => {
+  it('lists 5 skills and every seed template', async () => {
     const { app } = await mk();
     expect(JSON.parse((await app.inject({ url: '/api/skills', headers: U })).body).items).toHaveLength(5);
-    const t = JSON.parse((await app.inject({ url: '/api/templates', headers: U })).body).items; expect(t).toHaveLength(8); expect(t.every((x: any) => x.is_seed)).toBe(true);
+    const t = JSON.parse((await app.inject({ url: '/api/templates', headers: U })).body).items; expect(t).toHaveLength(SEED_TEMPLATES.length); expect(t.every((x: any) => x.is_seed)).toBe(true);
   });
   it('generate streams SSE events and the result lands in history, favourites and search', async () => {
     const { app } = await mk();

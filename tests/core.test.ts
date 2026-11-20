@@ -12,6 +12,8 @@ import { parseErrorEnvelope } from '../apps/server/src/vibe.ts';
 import { freshDb, RU_PROMPT, EN_PROMPT } from './helpers.ts';
 import { acquireLock, releaseLock, indexDoc, searchDocs, getSettings, setSettings } from '../apps/server/src/db.ts';
 import { DAY_MS, HOUR_MS } from '../apps/server/src/util.ts';
+import { SEED_TEMPLATES } from '../apps/server/src/seed/templates.ts';
+import { LIMITS } from '../shared/src/index.ts';
 
 describe('template variables', () => {
   it('extracts unique names and tolerates spaces', () => {
@@ -168,5 +170,29 @@ describe('settings and search index', () => {
     expect(searchDocs(db, 'gen', 'u1', 'договор')).toEqual(['g1']);
     expect(searchDocs(db, 'gen', 'u1', 'аренд')).toEqual(['g1']);
     expect(searchDocs(db, 'gen', 'u1', 'nothing')).toEqual([]);
+  });
+});
+
+
+describe('seed templates', () => {
+  it('have unique titles, valid variables and fit the template limits', () => {
+    const titles = SEED_TEMPLATES.map((t) => t.title);
+    expect(new Set(titles).size).toBe(titles.length);
+    for (const t of SEED_TEMPLATES) {
+      expect(validateTemplateVariables(t.body).ok, t.title).toBe(true);
+      expect(t.body.length, t.title).toBeLessThanOrEqual(LIMITS.template);
+      expect(t.description.length, t.title).toBeLessThanOrEqual(400);
+      expect(t.tags.length, t.title).toBeLessThanOrEqual(8);
+    }
+  });
+  it('agent-graph template keeps its six variables and every layer of the prompt', () => {
+    const t = SEED_TEMPLATES.find((x) => x.tags.includes('karpathy'))!;
+    expect(t).toBeDefined();
+    expect(extractVariables(t.body).sort()).toEqual(['alcance', 'checks', 'fuentes', 'limite', 'salida', 'tarea']);
+    for (const tag of ['objetivo', 'rol', 'principios', 'entradas', 'capa_1_division', 'capa_2_nodos', 'capa_3_nodos_de_codigo', 'capa_4_permisos', 'capa_5_puertas', 'capa_6_vueltas', 'capa_7_cierre', 'bucle_de_ejecucion', 'relevo', 'entrega']) {
+      expect(t.body, tag).toContain(`<${tag}>`);
+      expect(t.body, tag).toContain(`</${tag}>`);
+    }
+    expect(substituteVariables(t.body, { tarea: 'X' })).toContain('Resuelve X como');
   });
 });

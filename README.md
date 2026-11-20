@@ -6,7 +6,7 @@ UI language: Russian. Generated prompts: RU or EN (user's choice). Explanations 
 
 ## Features
 - **Generator**: intent analysis, per-system transformation (2 in parallel), checklist validation with one repair call, SSE streaming with polling fallback, clarifying-questions mode, per-card regeneration with feedback and variant history, compare view.
-- **History / Favourites / Templates**: full-text search, filters, soft delete, favourites per prompt, templates with `{{variables}}`, LLM generalisation, 8 seed templates, JSON export and template import.
+- **History / Favourites / Templates**: full-text search, filters, soft delete, favourites per prompt, templates with `{{variables}}`, LLM generalisation, 9 seed templates, JSON export and template import.
 - **Skills manager**: versions, server-side diff, rollback, pause, sources, changelog, manual refresh with cooldown.
 - **Agent**: dispatcher job with signature check and dedupe, random per-skill schedule, golden tests with a pairwise judge, canary and auto-rollback, reports, lazy fallback scheduler, budgets.
 - **Design**: neo-glassmorphism, dark/light/system themes, accessible, reduced-motion aware.
@@ -35,6 +35,10 @@ DEV_AUTH_BYPASS=1 npm run dev:server   &&   npm run dev:web
 | `npm run deploy` | build archive and call the Deploy API (`scripts/deploy.mjs`, JSON mode) |
 | `npm run smoke` | post-deploy checks (`scripts/smoke.mjs`) |
 | `npm run pack:source` | create `deliverables/promptolog-source-v<version>.zip` |
+| `npm run pack:repomix` | pack the repo into `repomix-output.xml` (`repomix.config.json`) |
+| `npm run docs:changelog -- --added "..."` | scripted CHANGELOG.md update (`scripts/docs_update.py`); CHANGELOG/HANDOFF are never edited by hand |
+| `npm run docs:handoff -- --decision "..."` | scripted HANDOFF.md update (decisions, limitations, patch log) |
+| `npm run docs:release -- X.Y.Z` | turn `[Unreleased]` into a release and bump `package.json` / lockfile version |
 
 ## Environment variables (names only; see `.env.example`)
 `VIBE_API_KEY` service key · `VIBE_APP_KEY` application key for identity · `VIBE_BASE_URL` · `VIBE_SERVER_ID` · `APP_PUBLIC_URL` · `DATA_DIR` · `JOB_SECRET` · `JOB_SECRET_PREVIOUS` · `NODE_ENV` · `PORT` (platform-injected) · `DEV_AUTH_BYPASS` (dev only) · `FRAME_ANCESTORS` (optional CSP override). All runtime-tunable options live in the `settings` table, not in env.

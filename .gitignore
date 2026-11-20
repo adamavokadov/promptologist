@@ -5,3 +5,21 @@ deliverables
 *.db
 *.db-*
 *.log
+
+# --- hygiene (patch 2026-11-20) ---
+.env.*
+!.env.example
+/data/
+coverage/
+.vite/
+*.tsbuildinfo
+job_secret
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.orig
+*.rej
+repomix-output.*
+.patch-backup/

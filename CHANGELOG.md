@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Seed template «Граф узлов для Claude Code (по Karpathy, Opus 5.5)»: Spanish agent-graph prompt inspired by Andrej Karpathy's autoresearch (bounded nodes, deterministic code nodes, evidence gates, graph.md / checks.md / progress.md handoff) with variables `{{tarea}}`, `{{salida}}`, `{{checks}}`, `{{fuentes}}`, `{{alcance}}`, `{{limite}}`; flagged EN because template language supports only ru/en.
+- Tests: seed-template invariants (unique titles, valid variables, size limits) and a structure test for the agent-graph template.
+- Repository hygiene: `.editorconfig`, `.gitattributes`, `.nvmrc`, `.devcontainer/devcontainer.json` (Node 24, Python 3), `.github/workflows/ci.yml` (build and test on Node 22 and 24), `repomix.config.json`.
+- `scripts/docs_update.py` and `docs:*` npm scripts: idempotent scripted updates of CHANGELOG.md and HANDOFF.md; applied patch scripts are archived in `patches/`.
+
+### Changed
+- .gitignore extended (env variants, data dir, coverage, tsbuildinfo, job_secret, OS/IDE files, repomix output, patch backups).
+- Seed template count 8 -> 9 in tests (now derived from `SEED_TEMPLATES.length`), smoke script, README and OPERATIONS.
+
 ## [1.0.0] - 2026-11-13
 First complete release. Source-only handover: the build, tests and archive were produced without access to the Vibecode platform; platform contracts that could not be verified are listed in HANDOFF.md ("Open risks").
 

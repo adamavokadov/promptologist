@@ -1,5 +1,7 @@
 # HANDOFF (for the next AI agent)
 
+_Last scripted update: 2026-11-20. Release history: CHANGELOG.md._
+
 Dense reference. Paths are repo-relative. Language policy: code, comments, commits, docs in English; app UI (`apps/web/src/strings.ru.ts`), card explanations and chat reports to the owner in Russian.
 
 ## 1. Mission and context
@@ -29,15 +31,17 @@ apps/server/src/
   vibe.ts                           platform client: retry/backoff/Retry-After, BOTH error envelopes, chat/search/research(SSE)/me/models/usage/jobs/notify
   auth.ts                           Gateway identity (X-Vibe-*), /v1/me resolution cached 15 min by sha256(session), rate limiter
   skills.ts                         seeding, version/DTO helpers, checklist parser/runner, skill-draft validator
-  seed/skills.ts, seed/templates.ts 5 seed skills (English bodies), 8 seed templates (Russian/English)
+  seed/skills.ts, seed/templates.ts 5 seed skills (English bodies), 9 seed templates (Russian/English/Spanish body)
   generation.ts                     stages A-D, transformOne (+repair), regeneration, canary accounting + auto-rollback, retention
   refresh.ts                        agent pipeline, budgets, golden tests, dispatch/manual/resume orchestration, keep-alive
   scheduler.ts                      next-check/retry computation, due selection, mutex constants
   jobs.ts                           signature verification, runId dedupe outbox, job registration (+lazy fallback), lazy trigger
   routes.ts                         all HTTP routes, SSE, security headers, static SPA
 apps/web/src/                       main.tsx, App.tsx (shell, nav, theme, wake overlay, iframe resize), api.ts (fetch + SSE + polling fallback), ui.tsx (primitives), context.tsx, strings.ru.ts, index.css (design system), screens/*, components/{ResultCard,TemplateSaveModal}
-scripts/deploy.mjs smoke.mjs pack-source.mjs
+scripts/deploy.mjs smoke.mjs pack-source.mjs docs_update.py   (docs_update.py = scripted CHANGELOG/HANDOFF maintenance)
 tests/core.test.ts pipeline.test.ts helpers.ts
+patches/                            applied patch scripts (see section 16)
+.github/workflows/ci.yml, .devcontainer/devcontainer.json, .editorconfig, .gitattributes, .nvmrc, repomix.config.json   repo hygiene
 ```
 
 ## 4. Data model (SQLite, migration v1 in `db.ts`)
@@ -105,6 +109,8 @@ Skill checklist markers: a line in `## Validation Checklist` may contain `` `has
 8. In-memory state: rate limits, identity cache and the lazy timer reset on restart (acceptable for a single instance).
 9. Deleting a generation hides its favourites too (soft delete is a deliberate full removal from all views).
 10. Agent notifications are skipped silently without the required scope.
+11. Template `language` supports only ru|en: the Spanish agent-graph template is flagged EN, so sending it to the generator selects English output. Spanish output is not a supported language.
+12. Repomix excludes `package-lock.json` by default, so repomix packs do not show the lockfile; it must stay committed (`npm ci` needs it).
 
 ## 11. Runbook pointers
 Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: `node scripts/smoke.mjs --base http://127.0.0.1:$PORT --generate --jobs`.
@@ -124,6 +130,9 @@ Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: 
 12. `GET /api/settings` is readable by all users; `scheduler_mode` is system-managed.
 13. Manual rollback inserts no version row; only the pointer moves and a `rolled_back` report is written.
 14. Retention exempts any generation that contains a favourite.
+15. The Karpathy-inspired agent-graph prompt (Opus 5.5) ships as a seed TEMPLATE, not as skill content: skills are fed only from whitelisted official vendor sources and are rewritten by the refresh agent, so third-party guidance would be lost or rejected. Seed templates are inserted by title at start (`seedAll`), so existing databases receive it automatically.
+16. The template body is kept in Spanish verbatim (only the `<prompt>` wrapper of the source note is dropped). Variables are lower-cased (`{{tarea}}`, ...) because `VAR_RE` accepts only `[a-z0-9_]`; `language` is `'en'` because templates support only ru/en.
+17. CHANGELOG.md and HANDOFF.md are updated only through `scripts/docs_update.py` (owner's standing rule); patch scripts import the same logic and are archived in `patches/`.
 
 ## 13. Conventions
 English identifiers and comments; Russian only in `strings.ru.ts`, seed templates and Russian meta-prompts. No UI strings outside `strings.ru.ts`. SQL only via prepared statements. zod validates every input. Commit style: imperative, phase-scoped (`phase 4: ...`). No stubs in working scenarios.
@@ -134,3 +143,17 @@ npm ci && npm run build && npm test
 DEV_AUTH_BYPASS=1 DATA_DIR=$(mktemp -d) PORT=3111 node dist/server.js &   # then:
 node scripts/smoke.mjs --base http://127.0.0.1:3111
 ```
+
+## 15. Scripted maintenance
+CHANGELOG.md and HANDOFF.md are maintained ONLY by `scripts/docs_update.py` (stdlib Python, idempotent). Never edit them by hand.
+```
+python3 scripts/docs_update.py changelog --added "..." --changed "..." --fixed "..."   # into [Unreleased]
+python3 scripts/docs_update.py release X.Y.Z                                           # [Unreleased] -> [X.Y.Z], bumps package.json/lock
+python3 scripts/docs_update.py handoff --decision "..." --limitation "..." --patch "id: summary"
+python3 scripts/docs_update.py handoff --sub "old text" "new text"                      # exact, idempotent substitution
+```
+Add `--dry-run` after the subcommand to preview a diff. Patch scripts live in `patches/` and call the same functions.
+
+## 16. Patch log
+Applied patch scripts (newest last); sources in `patches/`.
+- 2026-11-20 2026-11-20-agent-graph-and-hygiene: agent-graph seed template, 9 seed templates in tests/smoke/docs, repo hygiene files, scripted docs tool

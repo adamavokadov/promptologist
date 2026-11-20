@@ -1,0 +1,11 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml"
+  },
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": ["deliverables/**", "patches/**", "*.zip"]
+  }
+}

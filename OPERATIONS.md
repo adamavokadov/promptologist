@@ -14,7 +14,7 @@ Run on the server (exec) or against a reachable instance:
 ```
 node scripts/smoke.mjs --base http://127.0.0.1:$PORT --generate --jobs
 ```
-Checks: healthz, static files, 5 skills, 8 seed templates, agent status, one real free generation, job presence.
+Checks: healthz, static files, 5 skills, 9 seed templates, agent status, one real free generation, job presence.
 
 ## Rotate the job signing secret
 1. Rotate through the platform (the rotate-secret endpoint is described in `/docs/infra/jobs`). The new secret is shown once.

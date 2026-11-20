@@ -18,7 +18,11 @@
     "test": "vitest run",
     "deploy": "node scripts/deploy.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "pack:source": "node scripts/pack-source.mjs"
+    "pack:source": "node scripts/pack-source.mjs",
+    "pack:repomix": "npx --yes repomix",
+    "docs:changelog": "python3 scripts/docs_update.py changelog",
+    "docs:handoff": "python3 scripts/docs_update.py handoff",
+    "docs:release": "python3 scripts/docs_update.py release"
   },
   "dependencies": {
     "@fastify/static": "^10.1.10",
