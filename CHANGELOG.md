@@ -22,10 +22,21 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Design system switched to Obsidian / Linear Dark: new token palette (dark default and light), denser controls (32px), tighter radii, flat bordered surfaces, indigo accent; docs updated (design.md Part 0, README, agents.md).
 - `scripts/contrast-audit.mjs` now composites translucent tokens and checks status tints, accent text, elevated surfaces and the indigo viz ramp.
 - Default theme is dark again (`DEFAULT_SETTINGS.theme`); stored choices still win.
+- Match the Node typings to the oldest supported runtime and use an ESM-native Vite config.
+- Use shared Obsidian surfaces, fields, responsive grids and accessible browser dialogs across screens.
+- List published model presets and accept account-specific model IDs for other providers.
 
 ### Fixed
 - Removed placeholder entries (`...`, `id: summary`) that were written into CHANGELOG.md and HANDOFF.md by running the docs tool usage examples verbatim.
 - `npm run dev:server` now starts (`--experimental-transform-types`); parameter properties in `vibe.ts` are not supported by strip-only mode.
+- Preserve engine settings on partial updates and send provider-compatible completion parameters.
+- Serialize optimizer answers and compression, count clarification tokens, and retain the best saved compression.
+- Keep copy, folder editing, filtering, navigation and long text usable on narrow screens.
+- Use the response lifecycle for SSE cleanup and prevent repeated generation answers.
+
+### Security
+- Resolve and pin checked public addresses for custom engine connections and clear saved provider keys on destination changes.
+- Prevent shared caches from storing authenticated API responses.
 
 ## [1.1.0] - 2026-11-20
 

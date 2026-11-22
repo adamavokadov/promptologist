@@ -4,6 +4,14 @@ export const uid = (): string => randomUUID();
 export const nowIso = (): string => new Date().toISOString();
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 export const DAY_MS = 86_400_000;
+export function extractJson(text: string): unknown {
+  const t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  try { return JSON.parse(t); } catch { /* try to locate object */ }
+  const s = t.indexOf('{'); const e = t.lastIndexOf('}');
+  if (s >= 0 && e > s) return JSON.parse(t.slice(s, e + 1));
+  throw new Error('No JSON object found');
+}
+
 export const HOUR_MS = 3_600_000;
 export const jsonParse = <T>(s: string | null | undefined, fallback: T): T => {
   if (s == null || s === '') return fallback;

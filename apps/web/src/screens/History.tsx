@@ -25,17 +25,17 @@ export function HistoryScreen() {
   return (
     <div className="col" style={{ gap: 16 }}>
       <h1>{t.history.title}</h1>
-      <div className="glass card row wrap" style={{ gap: 12 }}>
-        <input className="inset-field" style={{ flex: '2 1 220px' }} value={q} placeholder={t.history.searchPlaceholder} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} />
-        <select className="inset-field" style={{ flex: '1 1 130px' }} value={system} aria-label={t.gen.systems} onChange={(e) => setSystem(e.target.value as SystemId | '')}><option value="">{t.common.all}</option>{Object.entries(SYSTEM_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        <select className="inset-field" style={{ flex: '1 1 100px' }} value={language} aria-label={t.history.language} onChange={(e) => setLanguage(e.target.value)}><option value="">{t.history.language}: {t.common.all}</option><option value="ru">RU</option><option value="en">EN</option></select>
-        <input className="inset-field" style={{ flex: '1 1 140px' }} type="date" value={from} aria-label={t.history.from} onChange={(e) => setFrom(e.target.value)} />
-        <input className="inset-field" style={{ flex: '1 1 140px' }} type="date" value={to} aria-label={t.history.to} onChange={(e) => setTo(e.target.value)} />
+      <div className="surface card row wrap" style={{ gap: 12 }}>
+        <input className="field" style={{ flex: '2 1 220px' }} value={q} placeholder={t.history.searchPlaceholder} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} />
+        <select className="field" style={{ flex: '1 1 130px' }} value={system} aria-label={t.gen.systems} onChange={(e) => setSystem(e.target.value as SystemId | '')}><option value="">{t.common.all}</option>{Object.entries(SYSTEM_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        <select className="field" style={{ flex: '1 1 100px' }} value={language} aria-label={t.history.language} onChange={(e) => setLanguage(e.target.value)}><option value="">{t.history.language}: {t.common.all}</option><option value="ru">RU</option><option value="en">EN</option></select>
+        <input className="field" style={{ flex: '1 1 140px' }} type="date" value={from} aria-label={t.history.from} onChange={(e) => setFrom(e.target.value)} />
+        <input className="field" style={{ flex: '1 1 140px' }} type="date" value={to} aria-label={t.history.to} onChange={(e) => setTo(e.target.value)} />
         <label className="row small"><input type="checkbox" checked={fav} onChange={(e) => setFav(e.target.checked)} />{t.history.onlyFav}</label>
       </div>
       {!data ? <Skeletons /> : data.items.length === 0 ? <Empty title={t.history.empty} hint={t.history.emptyHint} cta={<button className="btn primary" onClick={() => app.go('generator')}>{t.history.cta}</button>} /> : (
         <div className="col stagger">{data.items.map((g) => (
-          <button key={g.id} className="glass card hover row wrap" style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer', font: 'inherit' }} onClick={() => setOpenId(g.id)}>
+          <button key={g.id} className="surface card hover row wrap" style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer', font: 'inherit' }} onClick={() => setOpenId(g.id)}>
             <div className="col grow" style={{ gap: 8 }}><span className="small tx3">{fmtDate(g.created_at)}</span><span>{g.preview}</span><div className="row wrap">{g.systems.map((s) => <SystemChip key={s} id={s} />)}</div></div>
             <span className="badge">{g.language.toUpperCase()}</span><span className="badge ok">{g.cards} {t.history.cards}</span>{g.has_favorite && <span className="badge warn">★</span>}
           </button>))}
@@ -58,7 +58,7 @@ export function GenerationDrawer({ id, onClose, onChanged }: { id: string; onClo
   return (
     <Drawer title={t.history.title} onClose={onClose}>
       {!g ? <Skeletons n={2} h={160} /> : <div className="col">
-        <div className="glass dense card col"><span className="small tx3">{fmtDate(g.created_at)} · {g.language.toUpperCase()}</span><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{g.raw_input}</p>
+        <div className="surface card col"><span className="small tx3">{fmtDate(g.created_at)} · {g.language.toUpperCase()}</span><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{g.raw_input}</p>
           <div className="row wrap"><button className="btn sm primary" onClick={() => { app.setPrefill({ raw_input: g.raw_input, systems: groups.map(([s]) => s), language: g.language, options: g.options }); onClose(); }}><RotateCcw size={15} />{t.common.reuse}</button>
             <button className="btn sm danger" onClick={() => setConfirm(true)}><Trash2 size={15} />{t.common.delete}</button></div></div>
         {groups.map(([s, vs]) => <ResultCard key={s} system={s} variants={vs} busy={busy === s} onFavorite={favorite} onRegenerate={regenerate} onTemplate={setTpl} />)}

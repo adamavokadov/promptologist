@@ -15,6 +15,7 @@ function resolveDataDir(): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
+  host: process.env.HOST ?? '0.0.0.0',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   /** Service key (vibe_api_...) for AI router, search, infra, notifications and background jobs. */
   apiKey: process.env.VIBE_API_KEY ?? '',
@@ -29,7 +30,7 @@ export const config = {
   /** Encrypts stored provider API keys (AES-256-GCM). Without it keys cannot be saved. */
   engineSecret: process.env.ENGINE_SECRET ?? '',
   /** Allow Custom Base URL on private networks and plain http (local proxies). Off by default. */
-  engineAllowPrivate: process.env.ENGINE_ALLOW_PRIVATE === '1',
+  engineAllowPrivate: process.env.ENGINE_ALLOW_PRIVATE === '1' && process.env.NODE_ENV !== 'production',
   /** Local development only: skip Gateway identity (ignored when NODE_ENV=production). */
   devAuthBypass: process.env.DEV_AUTH_BYPASS === '1' && (process.env.NODE_ENV ?? 'development') !== 'production',
   staticDir: process.env.STATIC_DIR ?? path.resolve(process.cwd(), 'dist/public'),

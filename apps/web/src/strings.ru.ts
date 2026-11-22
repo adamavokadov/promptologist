@@ -1,7 +1,7 @@
 // All UI strings live here (i18n-ready). No literals elsewhere in components.
 export const t = {
   appName: 'Промптолог',
-  nav: { generator: 'Генератор', history: 'История', templates: 'Шаблоны', favorites: 'Избранное', skills: 'Скиллы', reports: 'Отчёты', settings: 'Настройки', optimizer: 'Оптимизатор', library: 'Библиотека', more: 'Ещё', new: 'Новый промпт', groupWork: 'Работа', groupSystem: 'Система', collapse: 'Свернуть меню', expand: 'Развернуть меню', mainLabel: 'Главное меню', tabsLabel: 'Навигация', themeLabel: 'Тема', userFallback: 'Пользователь' },
+  nav: { optimizerShort: 'Улучшить', libraryShort: 'Папки', generator: 'Генератор', history: 'История', templates: 'Шаблоны', favorites: 'Избранное', skills: 'Скиллы', reports: 'Отчёты', settings: 'Настройки', optimizer: 'Оптимизатор', library: 'Библиотека', more: 'Ещё', new: 'Новый промпт', groupWork: 'Работа', groupSystem: 'Система', collapse: 'Свернуть меню', expand: 'Развернуть меню', mainLabel: 'Главное меню', tabsLabel: 'Навигация', themeLabel: 'Тема', userFallback: 'Пользователь' },
   analytics: { nav: 'Аналитика', title: 'Аналитика продукта', state: { restricted: 'Раздел доступен администраторам', coming: 'Раздел скоро появится' } },
   agent: { active: 'Агент: активен', soon: 'след. проверка через', days: 'дн', paused: 'Агент на паузе', off: 'Агент выключен', fallback: 'Fallback: проверка при использовании', cron: 'Платформенный cron активен', busy: 'Агент: выполняет проверку' },
   common: { copy: 'Копировать', copied: 'Скопировано', retry: 'Повторить', cancel: 'Отмена', save: 'Сохранить', delete: 'Удалить', close: 'Закрыть', open: 'Открыть', edit: 'Редактировать', duplicate: 'Дублировать',
@@ -34,7 +34,7 @@ export const t = {
     masterSwitch: 'Автообновление скиллов', interval: 'Интервал: 10–15 дней, случайный график для каждого скилла', scheduler: 'Планировщик', lastRuns: 'Ближайшая проверка', checkAll: 'Проверить все сейчас', notifications: 'Уведомления', notifOn: 'Уведомлять владельца в Bitrix24',
     notifNote: 'Если у ключа нет нужного scope, уведомления тихо отключаются.', appearance: 'Внешний вид', theme: { dark: 'Тёмная', light: 'Светлая', system: 'Системная' }, data: 'Данные', export: 'Экспорт JSON', importTpl: 'Импорт шаблонов', clear: 'Очистить историю',
     clearConfirm: 'Все генерации, кроме избранных, будут удалены. Это нельзя отменить.', saved: 'Сохранено', adminOnly: 'Изменять настройки может только администратор', imported: 'Импортировано', retention: 'Хранить генераций', jobSecret: 'Секрет job', secretOk: 'настроен', secretMissing: 'не настроен (см. OPERATIONS.md)' },
-  opt: {
+  opt: { inputLabel: 'Ваш запрос', referenceLabel: 'Текст для разбора', runShortcut: 'Ctrl / ⌘ + Enter',
     title: 'Оптимизатор промптов', subtitle: 'Превращает сырую мысль в точный промпт, оценивает улучшение и сохраняет в библиотеку.',
     workflows: { magic: 'Один клик', clarify: 'Уточнение', template: 'Шаблон', reverse: 'Реверс' },
     workflowHints: { magic: 'Вставьте запрос и нажмите кнопку: роль, структуру и ограничения система додумает сама.',
@@ -53,7 +53,7 @@ export const t = {
     bridge: 'Мост языков: ввод RU, промпт EN, ответ RU', bridgeHint: 'Промпт будет на английском, а в конец добавится жёсткая инструкция отвечать по-русски.',
     questionsTitle: 'Уточните три момента', answerPlaceholder: 'Ваш ответ', answerContinue: 'Продолжить', answerSkip: 'Пропустить (авто)',
     initial: 'Исходный запрос', optimized: 'После оптимизации', scoreNote: 'Оценка модели, не измерение', changelog: 'Что изменено и зачем', finalPrompt: 'Готовый промпт', framework: 'Применено',
-    compress: 'Сжать промпт', compressing: 'Сжимаю…', compressed: 'Сжато с {a} до {b} токенов (−{p}% к стоимости API, оценка)', noGain: 'Сжатие не дало выигрыша без потери смысла: оставлен исходный промпт.',
+    compress: 'Сжать промпт', compressing: 'Сжимаю…', compressed: 'Примерно {a} → {b} токенов (−{p}%)', noGain: 'Более короткий вариант с теми же переменными получить не удалось.',
     showOriginal: 'Исходный', showCompressed: 'Сжатый', variables: 'Переменные', variablesHint: 'Введите значения: промпт обновится, копируется итоговый текст.',
     saved: 'Сохранено в библиотеку', folder: 'Папка', noFolder: 'Без папки', tags: 'Теги через запятую', engine: 'Движок',
     fileTooBig: 'Файл больше 200 КБ', fileTruncated: 'Текст обрезан до лимита', fileHint: 'Загрузить .txt / .md / .csv / .json', imagesNote: 'Изображения и документы пока не поддерживаются: вставьте текст.',
@@ -61,13 +61,13 @@ export const t = {
   library: {
     title: 'Библиотека', empty: 'Библиотека пуста', emptyHint: 'Каждая оптимизация сохраняется автоматически.', cta: 'К оптимизатору', search: 'Поиск по запросам, промптам и тегам',
     all: 'Все', unfiled: 'Без папки', favorites: 'Избранное', folders: 'Папки', newFolder: 'Новая папка', folderName: 'Название папки', rename: 'Переименовать',
-    confirmDeleteFolder: 'Удалить папку? Промпты останутся без папки.', confirmDelete: 'Удалить промпт из библиотеки?', deleted: 'Удалено', score: 'оценка', template: 'шаблон',
-    workflowFilter: 'Сценарий', allWorkflows: 'Все сценарии', open: 'Открыть', folderExists: 'Такая папка уже есть',
+    confirmDeleteFolder: 'Удалить папку? Промпты останутся без папки.', confirmDelete: 'Удалить промпт из библиотеки?', deleted: 'Удалено', template: 'шаблон',
+    workflowFilter: 'Сценарий', allWorkflows: 'Все сценарии', open: 'Открыть',
   },
-  engine: {
+  engine: { keyDestinationChanged: 'При смене адреса или провайдера введите новый ключ. Сохранённый ключ будет удалён.', loadError: 'Не удалось загрузить настройки движка. Откройте настройки снова.',
     title: 'ИИ-движок оптимизатора', provider: 'Провайдер', providers: { platform: 'Платформа Bitrix24 (по умолчанию)', anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', alibaba: 'Alibaba (Qwen)', moonshot: 'Moonshot AI (Kimi)', custom: 'Свой (OpenAI-совместимый)' },
     model: 'Модель', customModel: 'Своя модель (ID)', baseUrl: 'Custom Base URL', baseUrlHint: 'Только https. Внутренние адреса запрещены.', temperature: 'Температура', apiKey: 'Ключ API', apiKeyKept: 'Ключ сохранён', apiKeyNew: 'Введите новый ключ', apiKeyClear: 'Удалить ключ',
-    secretMissing: 'ENGINE_SECRET не задан на сервере: ключи API сохранять нельзя.', unverified: 'ID модели не проверен по документации провайдера', save: 'Сохранить движок', test: 'Проверить соединение', testOk: 'Соединение работает', ms: 'мс',
+    secretMissing: 'ENGINE_SECRET не задан на сервере: ключи API сохранять нельзя.', save: 'Сохранить движок', test: 'Проверить сохранённое подключение', testOk: 'Соединение работает', ms: 'мс',
     adminOnly: 'Менять движок может только администратор', note: 'Ключ хранится на сервере в зашифрованном виде и не возвращается в браузер.',
   },
   empty: { glyph: '✦' },

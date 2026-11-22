@@ -1,6 +1,6 @@
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { History, LayoutTemplate, Star, Cpu, ScrollText, Settings as Cog, Wand2, Plus, PanelLeftClose, PanelLeftOpen, BarChart3, Sparkles, Library, Sun, Moon, Monitor, MoreHorizontal } from 'lucide-react';
-import type { Settings } from '../../../shared/src/index.ts';
+import { settingsSchema, type Settings } from '../../../shared/src/index.ts';
 import { t } from './strings.ru.ts';
 import { get, onWake, ApiError } from './api.ts';
 import { AppCtx, type AgentStatus, type Me, type Prefill, type Screen, type AppState } from './context.tsx';
@@ -25,12 +25,18 @@ const ALL_SCREENS: Screen[] = ['generator', 'optimizer', 'library', 'history', '
 const parseHash = (): Screen => { const s = location.hash.replace('#/', '') as Screen; return ALL_SCREENS.includes(s) ? s : 'generator'; };
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage may be blocked in iframes */ } } };
 
+const themeFromStorage = () => {
+  const theme = settingsSchema.shape.theme.safeParse(store.get('theme'));
+  return theme.success ? theme.data : undefined;
+};
+const embedded = window.parent !== window;
+
 class Boundary extends Component<{ children: ReactNode }, { err: boolean }> {
   state = { err: false };
   static getDerivedStateFromError() { return { err: true }; }
   render() {
     if (!this.state.err) return this.props.children;
-    return <div className="empty glass" style={{ margin: 'var(--space-10)' }}><h3>{t.boundary.title}</h3><button className="btn primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => this.setState({ err: false })}>{t.boundary.retry}</button></div>;
+    return <div className="empty surface" style={{ margin: 'var(--space-10)' }}><h3>{t.boundary.title}</h3><button className="btn primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => this.setState({ err: false })}>{t.boundary.retry}</button></div>;
   }
 }
 
@@ -40,9 +46,10 @@ const initials = (n: string) => (n.trim().split(/\s+/).map((p) => p[0]).slice(0,
 export default function App() {
   const [screen, setScreen] = useState<Screen>(parseHash);
   const [me, setMe] = useState<Me | null>(null); const [settings, setSettingsState] = useState<Settings | null>(null); const [agent, setAgent] = useState<AgentStatus | null>(null);
-  const [authErr, setAuthErr] = useState(false); const [waking, setWaking] = useState(false); const [compact, setCompact] = useState(false); const [bodyW, setBodyW] = useState(1280); const [sidebarPref, setSidebarPref] = useState<'expanded' | 'collapsed' | null>(() => { const v = store.get('sidebar'); return v === 'expanded' || v === 'collapsed' ? v : null; }); const [moreOpen, setMoreOpen] = useState(false);
+  const [authErr, setAuthErr] = useState(false); const [waking, setWaking] = useState(false); const [bodyW, setBodyW] = useState(() => document.documentElement.clientWidth); const [sidebarPref, setSidebarPref] = useState<'expanded' | 'collapsed' | null>(() => { const v = store.get('sidebar'); return v === 'expanded' || v === 'collapsed' ? v : null; }); const [moreOpen, setMoreOpen] = useState(false);
+  const compact = bodyW < 800;
   const [prefill, setPrefillState] = useState<Prefill | null>(null); const [openGenerationId, setOpenGenerationId] = useState<string | null>(null);
-  const [theme, setThemeState] = useState<'dark' | 'light' | 'system'>(() => (store.get('theme') as any) || 'dark');
+  const [theme, setThemeState] = useState<'dark' | 'light' | 'system'>(() => themeFromStorage() ?? 'dark');
   const shellRef = useRef<HTMLDivElement>(null);
 
   const go = useCallback((s: Screen) => { setScreen(s); setMoreOpen(false); try { history.replaceState(null, '', `#/${s}`); } catch { /* ignore */ } }, []);
@@ -53,17 +60,27 @@ export default function App() {
   }, []);
   useEffect(() => { reload(); const id = setInterval(() => get<AgentStatus>('/api/agent/status').then(setAgent).catch(() => {}), 60_000); return () => clearInterval(id); }, [reload]);
   useEffect(() => onWake(setWaking), []);
-  useEffect(() => { const ro = new ResizeObserver(([e]) => { const w = e?.contentRect.width ?? 1000; setCompact(w < 800); setBodyW(w); }); ro.observe(document.body); return () => ro.disconnect(); }, []);
+  useEffect(() => { const ro = new ResizeObserver(([e]) => { if (e) setBodyW(e.contentRect.width); }); ro.observe(document.body); return () => ro.disconnect(); }, []);
   useEffect(() => { // theme
     const apply = () => { const dark = theme === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; };
     apply(); const mq = matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', apply); return () => mq.removeEventListener('change', apply);
   }, [theme]);
-  useEffect(() => { if (settings && !store.get('theme')) setThemeState(settings.theme); }, [settings]);
+  useEffect(() => { if (settings && !themeFromStorage()) setThemeState(settings.theme); }, [settings]);
   useEffect(() => { // iframe auto-height contract: window.parent.postMessage({type:'vibe:resize', height})
-    const el = shellRef.current; if (!el) return;
-    const send = () => { try { window.parent?.postMessage({ type: 'vibe:resize', height: Math.ceil(Math.max(el.scrollHeight, el.offsetHeight)) + 8 }, '*'); } catch { /* ignore */ } };
-    const ro = new ResizeObserver(send); ro.observe(el); send(); return () => ro.disconnect();
-  });
+    const el = shellRef.current;
+    if (!el || !embedded) return;
+    let lastHeight = 0;
+    const send = () => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
+      if (!height || height === lastHeight) return;
+      lastHeight = height;
+      window.parent.postMessage({ type: 'vibe:resize', height }, '*');
+    };
+    const ro = new ResizeObserver(send);
+    ro.observe(el);
+    send();
+    return () => ro.disconnect();
+  }, [authErr]);
   const isAdmin = !!me?.is_admin; const meLoaded = me !== null;
   useEffect(() => { const h = () => { const s = parseHash(); if (s === 'analytics' && !isAdmin) return; setScreen(s); }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h); }, [isAdmin]);
   useEffect(() => { if (meLoaded && !isAdmin && screen === 'analytics') go('generator'); }, [meLoaded, isAdmin, screen, go]); // admin-only section: non-admins fall back to the generator
@@ -80,18 +97,19 @@ export default function App() {
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
   const systemNav = SYSTEM.filter((n) => !n.adminOnly || isAdmin);
   const flatNav = [NEW_PROMPT, ...WORK, ...systemNav, SETTINGS];
-  const mainNav = compact ? flatNav.slice(0, 4) : flatNav; const moreNav = compact ? flatNav.slice(4) : [];
+  const mainNav = flatNav.slice(0, 4);
+  const moreNav = flatNav.slice(4);
   const collapsed = !compact && (sidebarPref ? sidebarPref === 'collapsed' : bodyW < 1024);
   const toggleSidebar = () => { const next = collapsed ? 'expanded' : 'collapsed'; setSidebarPref(next); store.set('sidebar', next); };
   const themeLabel = `${t.nav.themeLabel}: ${t.settings.theme[theme]}`; const userName = me?.name ?? t.nav.userFallback;
   const cycleTheme = () => state.setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark');
   const navButton = (n: NavDef, extra = '') => <button key={n.id} className={`nav-item ${extra} ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} aria-label={collapsed ? n.label : undefined} title={n.label}><n.icon size={n.id === 'generator' ? 16 : 18} aria-hidden /><span className="nav-label">{n.label}</span></button>;
 
-  if (authErr) return <ToastProvider><div style={{ padding: 'var(--space-10)' }}><div className="empty glass"><Logo /><h3 style={{ marginTop: 'var(--space-3)' }}>{t.appName}</h3><p className="tx2">{t.auth.required}</p></div></div></ToastProvider>;
+  if (authErr) return <ToastProvider><div ref={shellRef} style={{ padding: 'var(--space-10)' }}><div className="empty surface"><Logo /><h3 style={{ marginTop: 'var(--space-3)' }}>{t.appName}</h3><p className="tx2">{t.auth.required}</p></div></div></ToastProvider>;
 
   return (
     <AppCtx.Provider value={state}><ToastProvider>
-      <div className={`shell ${compact ? 'compact' : ''}`} ref={shellRef}>
+      <div className={`shell ${compact ? 'compact' : ''} ${embedded ? 'embedded' : ''}`} ref={shellRef}>
         {!compact && (
           <aside id="app-sidebar" className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label={t.nav.mainLabel}>
             <div className="sidebar-head">
@@ -128,6 +146,10 @@ export default function App() {
               <span className="avatar" title={userName} aria-label={userName}>{initials(me?.name ?? '')}</span>
             </header>
           )}
+        {compact && <nav className="bottom-tabs" aria-label={t.nav.tabsLabel}>
+          {mainNav.map((n) => <button key={n.id} className={`nav-item ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} aria-label={n.label}><n.icon size={20} aria-hidden /><span>{n.id === 'optimizer' ? t.nav.optimizerShort : n.id === 'library' ? t.nav.libraryShort : n.label}</span></button>)}
+          {moreNav.length > 0 && <button className="nav-item" onClick={() => setMoreOpen(true)} aria-label={t.nav.more}><MoreHorizontal size={20} aria-hidden /><span>{t.nav.more}</span></button>}
+        </nav>}
           <main className="content">
             {agent?.paused_reason && <div className="banner err" role="alert"><span className="grow">{agent.paused_reason.startsWith('quota') ? t.banner.quota : t.banner.paused}</span></div>}
             {agent?.scheduler_mode === 'lazy' && <div className="banner warn"><span className="grow">{t.banner.fallback}</span></div>}
@@ -139,13 +161,9 @@ export default function App() {
             </Boundary>
           </main>
         </div>
-        <nav className="bottom-tabs" aria-label={t.nav.tabsLabel}>
-          {mainNav.map((n) => <button key={n.id} className={`nav-item ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} aria-label={n.label}><n.icon size={20} aria-hidden /><span>{n.label}</span></button>)}
-          {moreNav.length > 0 && <button className="nav-item" onClick={() => setMoreOpen(true)} aria-label={t.nav.more}><MoreHorizontal size={20} aria-hidden /><span>{t.nav.more}</span></button>}
-        </nav>
         {moreOpen && <Modal title={t.nav.more} onClose={() => setMoreOpen(false)}>{moreNav.map((n) => <button key={n.id} className="nav-item" onClick={() => go(n.id)}><n.icon size={20} aria-hidden />{n.label}</button>)}</Modal>}
       </div>
-      {waking && <div className="overlay" style={{ zIndex: 80 }} role="alert"><div className="glass dense empty" style={{ maxWidth: 420 }}><Logo /><h3 style={{ margin: 'var(--space-3) 0 var(--space-2)' }}>{t.wake.title}</h3><p className="tx2" style={{ margin: '0 0 var(--space-3)' }}>{t.wake.hint}</p><Spinner /></div></div>}
+      {waking && <div className="overlay" style={{ zIndex: 80 }} role="alert"><div className="surface empty" style={{ maxWidth: 420 }}><Logo /><h3 style={{ margin: 'var(--space-3) 0 var(--space-2)' }}>{t.wake.title}</h3><p className="tx2" style={{ margin: '0 0 var(--space-3)' }}>{t.wake.hint}</p><Spinner /></div></div>}
     </ToastProvider></AppCtx.Provider>
   );
 }

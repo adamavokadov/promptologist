@@ -5,7 +5,7 @@ import { t } from '../strings.ru.ts';
 import { streamGenerate, post, patch, ApiError } from '../api.ts';
 import { useApp } from '../context.tsx';
 import { Seg, Switch, Spinner, SystemDot, useToast } from '../ui.tsx';
-import { ResultCard, groupBySystem } from '../components/ResultCard.tsx';
+import { ResultCard } from '../components/ResultCard.tsx';
 import { TemplateSaveModal } from '../components/TemplateSaveModal.tsx';
 
 type CardState = { status: 'loading' | 'ok' | 'error'; variants: ResultDTO[]; error?: string };
@@ -67,9 +67,9 @@ export function GeneratorScreen() {
 
   return (
     <div className="col" style={{ gap: 18 }}>
-      <section className="glass card col" aria-labelledby="gen-title" style={{ padding: 24 }}>
+      <section className="surface card col" aria-labelledby="gen-title" style={{ padding: 24 }}>
         <h1 id="gen-title">{t.gen.title}</h1>
-        <div><textarea ref={ta} className="inset-field" value={raw} maxLength={LIMITS.rawInputMax} placeholder={t.gen.placeholder} onChange={(e) => setRaw(e.target.value)} aria-label={t.gen.title} />
+        <div><textarea ref={ta} className="field" value={raw} maxLength={LIMITS.rawInputMax} placeholder={t.gen.placeholder} onChange={(e) => setRaw(e.target.value)} aria-label={t.gen.title} />
           <div className="row spread small tx3" style={{ marginTop: 6 }}><span>{raw.length > 0 && raw.trim().length < LIMITS.rawInputMin ? t.gen.tooShort : ''}</span><span>{raw.length} / {LIMITS.rawInputMax} {t.gen.counter}</span></div></div>
         <div className="row wrap" role="group" aria-label={t.gen.systems}>
           {SYSTEM_IDS.map((id) => <button key={id} type="button" className={`chip ${systems.includes(id) ? 'on' : ''}`} aria-pressed={systems.includes(id)} onClick={() => toggle(id)}><SystemDot id={id} />{SYSTEM_NAMES[id]}</button>)}
@@ -78,7 +78,7 @@ export function GeneratorScreen() {
         </div>
         <div><button className="btn ghost sm" onClick={() => setAdvOpen(!advOpen)} aria-expanded={advOpen}><ChevronDown size={15} style={{ transform: advOpen ? 'rotate(180deg)' : undefined }} />{t.gen.advanced}</button>
           {advOpen && <div className="row wrap" style={{ marginTop: 12, gap: 18, alignItems: 'flex-end' }}>
-            <div><label className="label" htmlFor="g-type">{t.gen.taskType}</label><select id="g-type" className="inset-field" value={opts.task_type} onChange={(e) => setOpts({ ...opts, task_type: e.target.value as GenOptions['task_type'] })}>{Object.entries(t.gen.taskTypes).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+            <div><label className="label" htmlFor="g-type">{t.gen.taskType}</label><select id="g-type" className="field" value={opts.task_type} onChange={(e) => setOpts({ ...opts, task_type: e.target.value as GenOptions['task_type'] })}>{Object.entries(t.gen.taskTypes).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
             <div><span className="label">{t.gen.detail}</span><Seg label={t.gen.detail} value={opts.detail} onChange={(v) => setOpts({ ...opts, detail: v })} options={Object.entries(t.gen.details).map(([value, label]) => ({ value: value as GenOptions['detail'], label }))} /></div>
             <div><span className="label">{t.gen.assumptions}</span><Seg label={t.gen.assumptions} value={opts.assumptions_mode} onChange={(v) => setOpts({ ...opts, assumptions_mode: v })} options={Object.entries(t.gen.modes).map(([value, label]) => ({ value: value as GenOptions['assumptions_mode'], label }))} /></div>
             <div className="row"><Switch on={opts.include_format} onChange={(v) => setOpts({ ...opts, include_format: v })} label={t.gen.includeFormat} /><span>{t.gen.includeFormat}</span></div>
@@ -86,8 +86,8 @@ export function GeneratorScreen() {
         <div className="row wrap"><button className="btn primary" disabled={!valid || running} onClick={submit}>{running ? <Spinner /> : <Wand2 size={17} />}{running ? stage : t.gen.submit}</button><span className="small tx3">{t.gen.hint}</span>{polling && <span className="small tx2">{t.gen.fallbackPoll}</span>}</div>
       </section>
 
-      {questions && <section className="glass card col" aria-label={t.gen.questionsTitle}><h3>{t.gen.questionsTitle}</h3>
-        {questions.map((q, i) => <div key={i}><label className="label" htmlFor={`q${i}`}>{q}</label><input id={`q${i}`} className="inset-field" value={answers[i] ?? ''} placeholder={t.gen.answerPlaceholder} onChange={(e) => setAnswers(answers.map((a, j) => (j === i ? e.target.value : a)))} /></div>)}
+      {questions && <section className="surface card col" aria-label={t.gen.questionsTitle}><h3>{t.gen.questionsTitle}</h3>
+        {questions.map((q, i) => <div key={i}><label className="label" htmlFor={`q${i}`}>{q}</label><input id={`q${i}`} className="field" value={answers[i] ?? ''} placeholder={t.gen.answerPlaceholder} onChange={(e) => setAnswers(answers.map((a, j) => (j === i ? e.target.value : a)))} /></div>)}
         <button className="btn primary" style={{ alignSelf: 'flex-start' }} onClick={answer}>{t.gen.questionsContinue}</button></section>}
 
       {order.length > 0 && <section className="col" aria-live="polite">

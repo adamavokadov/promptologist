@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Minimize2 } from 'lucide-react';
-import { estimateTokens, substituteBracketVars, type FolderDTO, type OptimizationDTO } from '../../../../shared/src/index.ts';
+import { estimateTokens, OPT_LIMITS, substituteBracketVars, type FolderDTO, type OptimizationDTO } from '../../../../shared/src/index.ts';
 import { t } from '../strings.ru.ts';
 import { patch, post, ApiError } from '../api.ts';
 import { CopyButton, Spinner, StarButton, useToast } from '../ui.tsx';
@@ -8,7 +8,7 @@ import { CopyButton, Spinner, StarButton, useToast } from '../ui.tsx';
 type Compressed = OptimizationDTO & { no_gain?: boolean; saved_pct?: number };
 
 const ScoreBar = ({ label, value }: { label: string; value: number | null }) => (
-  <div style={{ flex: 1, minWidth: 160 }}>
+  <div className="score-field">
     <div className="row spread small"><span className="tx2">{label}</span><strong className="mono">{value === null ? '—' : value.toFixed(1)}/10</strong></div>
     <div role="img" aria-label={`${label}: ${value ?? 0} / 10`} style={{ height: 'var(--space-2)', borderRadius: 'var(--radius-full)', background: 'var(--color-surface-secondary)', border: '1px solid var(--color-border)', marginTop: 'var(--space-1)' }}>
       <div style={{ width: `${Math.round(((value ?? 0) / 10) * 100)}%`, height: '100%', borderRadius: 'var(--radius-full)', background: 'var(--color-accent)' }} />
@@ -21,7 +21,6 @@ export function OptimizationView({ item, folders, onChange }: { item: Optimizati
   const [values, setValues] = useState<Record<string, string>>(item.var_values);
   const [busy, setBusy] = useState(false); const [view, setView] = useState<'full' | 'compressed'>(item.compressed_prompt ? 'compressed' : 'full');
   const [note, setNote] = useState<string>(''); const [tags, setTags] = useState(item.tags.join(', '));
-  useEffect(() => { setValues(item.var_values); setView(item.compressed_prompt ? 'compressed' : 'full'); setTags(item.tags.join(', ')); setNote(''); }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const base = view === 'compressed' && item.compressed_prompt ? item.compressed_prompt : item.final_prompt;
   const master = useMemo(() => substituteBracketVars(base, values), [base, values]);
   const fail = (e: unknown) => toast((e as ApiError).message ?? t.common.error, 'err');
@@ -36,12 +35,12 @@ export function OptimizationView({ item, folders, onChange }: { item: Optimizati
   };
   return (
     <div className="col">
-      <div className="glass card col" aria-label={t.opt.optimized}>
-        <div className="row wrap" style={{ gap: 'var(--space-6)' }}><ScoreBar label={t.opt.initial} value={item.initial_score} /><ScoreBar label={t.opt.optimized} value={item.optimized_score} /></div>
+      <div className="surface card col" aria-label={t.opt.optimized}>
+        <div className="form-grid"><ScoreBar label={t.opt.initial} value={item.initial_score} /><ScoreBar label={t.opt.optimized} value={item.optimized_score} /></div>
         {item.initial_critique && <p className="small tx2" style={{ margin: 0 }}>{item.initial_critique}</p>}
         <p className="small tx3" style={{ margin: 0 }}>{t.opt.scoreNote}{item.framework_used ? ` · ${t.opt.framework}: ${item.framework_used}` : ''}</p>
       </div>
-      <div className="glass card col">
+      <div className="surface card col">
         <div className="row spread wrap">
           <h3>{t.opt.finalPrompt}</h3>
           <div className="row wrap">
@@ -60,23 +59,23 @@ export function OptimizationView({ item, folders, onChange }: { item: Optimizati
         </div>
       </div>
       {item.variables.length > 0 && (
-        <div className="glass card col">
+        <div className="surface card col">
           <h3>{t.opt.variables}</h3><p className="small tx2" style={{ margin: 0 }}>{t.opt.variablesHint}</p>
           <div className="grid-cards">
             {item.variables.map((v) => <div key={v}><label className="label" htmlFor={`var-${v}`}>{v}</label>
-              <input id={`var-${v}`} className="inset-field" value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} onBlur={() => { if (JSON.stringify(values) !== JSON.stringify(item.var_values)) void save({ var_values: values }); }} /></div>)}
+              <input id={`var-${v}`} className="field" maxLength={OPT_LIMITS.variableValue} value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} onBlur={() => { if (JSON.stringify(values) !== JSON.stringify(item.var_values)) void save({ var_values: values }); }} /></div>)}
           </div>
         </div>
       )}
       {item.changelog_explanation.length > 0 && (
-        <div className="glass card col"><h3>{t.opt.changelog}</h3><ul style={{ margin: 0, paddingLeft: 'var(--space-5)' }}>{item.changelog_explanation.map((c, i) => <li key={i} className="small" style={{ marginBottom: 'var(--space-1)' }}>{c}</li>)}</ul></div>
+        <div className="surface card col"><h3>{t.opt.changelog}</h3><ul style={{ margin: 0, paddingLeft: 'var(--space-5)' }}>{item.changelog_explanation.map((c, i) => <li key={i} className="small" style={{ marginBottom: 'var(--space-1)' }}>{c}</li>)}</ul></div>
       )}
-      <div className="glass card row wrap">
+      <div className="surface card form-grid">
         <div><label className="label" htmlFor={`folder-${item.id}`}>{t.opt.folder}</label>
-          <select id={`folder-${item.id}`} className="inset-field" style={{ minWidth: 200 }} value={item.folder_id ?? ''} onChange={(e) => save({ folder_id: e.target.value || null })}>
+          <select id={`folder-${item.id}`} className="field" value={item.folder_id ?? ''} onChange={(e) => save({ folder_id: e.target.value || null })}>
             <option value="">{t.opt.noFolder}</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></div>
         <div className="grow"><label className="label" htmlFor={`tags-${item.id}`}>{t.opt.tags}</label>
-          <input id={`tags-${item.id}`} className="inset-field" value={tags} onChange={(e) => setTags(e.target.value)} onBlur={() => { const list = tags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); if (list.join('|') !== item.tags.join('|')) void save({ tags: list }); }} /></div>
+          <input id={`tags-${item.id}`} className="field" value={tags} onChange={(e) => setTags(e.target.value)} onBlur={() => { const list = tags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); if (JSON.stringify(list) !== JSON.stringify(item.tags)) void save({ tags: list }); }} /></div>
         <span className="small tx3">{t.opt.engine}: <span className="mono">{item.model || '—'}</span></span>
       </div>
     </div>

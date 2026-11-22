@@ -17,10 +17,10 @@ export function TemplatesScreen() {
   return (
     <div className="col" style={{ gap: 16 }}>
       <div className="row spread wrap"><h1>{t.templates.title}</h1><button className="btn primary" onClick={() => setEditing('new')}><Plus size={17} />{t.templates.new}</button></div>
-      <div className="glass card"><input className="inset-field" value={q} placeholder={t.common.search} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} /></div>
+      <div className="surface card"><input className="field" value={q} placeholder={t.common.search} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} /></div>
       {!items ? <Skeletons /> : items.length === 0 ? <Empty title={t.templates.empty} hint={t.templates.emptyHint} /> : (
         <div className="grid-cards stagger">{items.map((tp) => (
-          <article key={tp.id} className="glass card hover col" style={{ position: 'relative' }}>
+          <article key={tp.id} className="surface card hover col" style={{ position: 'relative' }}>
             <div className="row spread"><h3 style={{ fontSize: 16 }}>{tp.title}</h3><div className="row">{tp.is_seed && <span className="badge info">{t.templates.seed}</span>}<span className="badge">{tp.language.toUpperCase()}</span></div></div>
             <p className="tx2 small" style={{ margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tp.description || tp.body}</p>
             <div className="row wrap">{tp.default_systems.map((s) => <SystemChip key={s} id={s} />)}</div>
@@ -28,10 +28,10 @@ export function TemplatesScreen() {
             <div className="row spread"><span className="small tx3">{t.templates.used} {tp.usage_count} {t.templates.times}</span>
               <div className="row"><button className="btn sm primary" onClick={() => setUsing(tp)}>{t.templates.use}</button>
                 <button className="icon-btn" aria-label={t.common.more} aria-haspopup="menu" aria-expanded={menu === tp.id} onClick={() => setMenu(menu === tp.id ? null : tp.id)}><MoreHorizontal size={18} /></button></div></div>
-            {menu === tp.id && <div className="glass dense col" role="menu" style={{ position: 'absolute', right: 12, bottom: 56, padding: 8, gap: 2, zIndex: 3 }}>
+            {menu === tp.id && <div className="surface col" role="menu" style={{ position: 'absolute', right: 12, bottom: 56, padding: 8, gap: 2, zIndex: 3 }}>
               {!tp.is_seed && <button className="nav-item" role="menuitem" onClick={() => { setMenu(null); setEditing(tp); }}>{t.common.edit}</button>}
               <button className="nav-item" role="menuitem" onClick={() => { setMenu(null); void dup(tp); }}>{t.common.duplicate}</button>
-              {!tp.is_seed && <button className="nav-item" role="menuitem" style={{ color: 'var(--err)' }} onClick={() => { setMenu(null); setRemoving(tp); }}>{t.common.delete}</button>}</div>}
+              {!tp.is_seed && <button className="nav-item" role="menuitem" style={{ color: 'var(--color-danger)' }} onClick={() => { setMenu(null); setRemoving(tp); }}>{t.common.delete}</button>}</div>}
           </article>))}</div>)}
       {using && <UseModal tp={using} onClose={() => setUsing(null)} onGo={(text) => { app.setPrefill({ raw_input: text, systems: using.default_systems, language: using.language }); setUsing(null); void load(); }} />}
       {editing && <EditorModal tp={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}
@@ -46,8 +46,8 @@ function UseModal({ tp, onClose, onGo }: { tp: TemplateDTO; onClose: () => void;
   const go = async () => { setBusy(true); try { const r = await post<{ text: string }>(`/api/templates/${tp.id}/use`, { values }); onGo(r.text); } catch (e) { toast((e as ApiError).message, 'err'); } finally { setBusy(false); } };
   return <Modal title={`${t.templates.useTitle}: ${tp.title}`} wide onClose={onClose} footer={<><button className="btn" onClick={onClose}>{t.common.cancel}</button><button className="btn primary" disabled={busy} onClick={go}>{busy && <Spinner />}{t.templates.toGenerator}</button></>}>
     {tp.variables.map((v) => <div key={v}><label className="label" htmlFor={`v-${v}`}>{v}</label>{/(notes|text|error|body|content)/.test(v)
-      ? <textarea id={`v-${v}`} className="inset-field" rows={4} value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} />
-      : <input id={`v-${v}`} className="inset-field" value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} />}</div>)}
+      ? <textarea id={`v-${v}`} className="field" rows={4} value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} />
+      : <input id={`v-${v}`} className="field" value={values[v] ?? ''} onChange={(e) => setValues({ ...values, [v]: e.target.value })} />}</div>)}
     <div><span className="label">{t.templates.preview}</span><div className="prompt-box">{preview}</div></div>
   </Modal>;
 }
@@ -64,17 +64,17 @@ function EditorModal({ tp, onClose, onSaved }: { tp: TemplateDTO | null; onClose
   };
   const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1.6, padding: 12, whiteSpace: 'pre-wrap' as const, wordBreak: 'break-word' as const, border: '1px solid transparent' };
   return <Modal title={t.templates.editor} wide onClose={onClose} footer={<><button className="btn" onClick={onClose}>{t.common.cancel}</button><button className="btn primary" disabled={busy || !title.trim() || !body.trim() || tooMany} onClick={save}>{busy && <Spinner />}{t.common.save}</button></>}>
-    <div><label className="label" htmlFor="e-title">{t.templates.titleField}</label><input id="e-title" className="inset-field" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></div>
-    <div><label className="label" htmlFor="e-desc">{t.templates.descField}</label><input id="e-desc" className="inset-field" value={description} maxLength={400} onChange={(e) => setDescription(e.target.value)} /></div>
+    <div><label className="label" htmlFor="e-title">{t.templates.titleField}</label><input id="e-title" className="field" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></div>
+    <div><label className="label" htmlFor="e-desc">{t.templates.descField}</label><input id="e-desc" className="field" value={description} maxLength={400} onChange={(e) => setDescription(e.target.value)} /></div>
     <div><label className="label" htmlFor="e-body">{t.templates.bodyField}</label>
-      <div style={{ position: 'relative', background: 'var(--inset)', borderRadius: 14, border: '1px solid var(--glass-border)' }}>
+      <div style={{ position: 'relative', background: 'var(--color-surface-secondary)', borderRadius: 14, border: '1px solid var(--color-border)' }}>
         <div ref={bd} aria-hidden style={{ ...mono, position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', color: 'transparent' }}>{hl}{'\n'}</div>
         <textarea id="e-body" rows={9} value={body} onChange={(e) => setBody(e.target.value)} onScroll={(e) => { if (bd.current) bd.current.scrollTop = e.currentTarget.scrollTop; }}
-          style={{ ...mono, position: 'relative', width: '100%', background: 'transparent', color: 'var(--tx)', outline: 'none', resize: 'vertical', borderRadius: 14, display: 'block' }} /></div>
-      <div className="row wrap small" style={{ marginTop: 6 }}><span className="tx3">{t.templates.variables}:</span>{vars.map((v) => <span key={v} className="badge">{`{{${v}}}`}</span>)}{tooMany && <span style={{ color: 'var(--err)' }}>{t.templates.maxVars}</span>}</div></div>
+          style={{ ...mono, position: 'relative', width: '100%', background: 'transparent', color: 'var(--color-text-primary)', outline: 'none', resize: 'vertical', borderRadius: 14, display: 'block' }} /></div>
+      <div className="row wrap small" style={{ marginTop: 6 }}><span className="tx3">{t.templates.variables}:</span>{vars.map((v) => <span key={v} className="badge">{`{{${v}}}`}</span>)}{tooMany && <span style={{ color: 'var(--color-danger)' }}>{t.templates.maxVars}</span>}</div></div>
     <div className="row wrap" style={{ gap: 16 }}><Seg label="language" value={language} onChange={setLanguage} options={[{ value: 'ru', label: 'RU' }, { value: 'en', label: 'EN' }]} />
       <div className="row wrap">{SYSTEM_IDS.map((id) => <button key={id} type="button" className={`chip ${systems.includes(id) ? 'on' : ''}`} aria-pressed={systems.includes(id)} onClick={() => toggle(id)}>{id}</button>)}</div></div>
-    <div><label className="label" htmlFor="e-tags">{t.templates.tagsField}</label><input id="e-tags" className="inset-field" value={tags} onChange={(e) => setTags(e.target.value)} /></div>
+    <div><label className="label" htmlFor="e-tags">{t.templates.tagsField}</label><input id="e-tags" className="field" value={tags} onChange={(e) => setTags(e.target.value)} /></div>
   </Modal>;
 }
 void Sparkles;

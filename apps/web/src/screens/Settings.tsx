@@ -8,6 +8,8 @@ import { Seg, Switch, ConfirmModal, useToast } from '../ui.tsx';
 import { EngineSettings } from '../components/EngineSettings.tsx';
 
 interface Model { id: string; name: string; free: boolean; pricing: unknown }
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => <section className="surface card col" aria-label={title}><h3>{title}</h3>{children}</section>;
+
 export function SettingsScreen() {
   const app = useApp(); const toast = useToast(); const admin = !!app.me?.is_admin; const s = app.settings; const file = useRef<HTMLInputElement>(null);
   const [models, setModels] = useState<Model[]>([]); const [usage, setUsage] = useState<any>(null); const [confirm, setConfirm] = useState(false);
@@ -18,10 +20,9 @@ export function SettingsScreen() {
   const importTpl = async (f: File) => { try { const j = JSON.parse(await f.text()); const r = await post<{ imported: number; errors: string[] }>('/api/import/templates', { templates: Array.isArray(j) ? j : j.templates ?? [] }); toast(`${t.settings.imported}: ${r.imported}${r.errors.length ? ` (ошибок: ${r.errors.length})` : ''}`, r.errors.length ? 'err' : 'ok'); } catch (e) { toast((e as ApiError).message || t.common.error, 'err'); } };
   const clear = async () => { try { const r = await post<{ removed: number }>('/api/history/clear'); toast(`${t.common.delete}: ${r.removed}`, 'ok'); } catch (e) { toast((e as ApiError).message, 'err'); } };
   const modelSelect = (id: string, value: string, key: 'transformer_model' | 'analyzer_model', label: string) => (
-    <div><label className="label" htmlFor={id}>{label}</label><select id={id} className="inset-field" disabled={!admin} value={value} onChange={(e) => save({ [key]: e.target.value })}>{[...new Set([value, ...models.map((m) => m.id)])].map((m) => <option key={m} value={m}>{m}{models.find((x) => x.id === m)?.free ? ` · ${t.settings.free}` : ''}</option>)}</select></div>);
+    <div><label className="label" htmlFor={id}>{label}</label><select id={id} className="field" disabled={!admin} value={value} onChange={(e) => save({ [key]: e.target.value })}>{[...new Set([value, ...models.map((m) => m.id)])].map((m) => <option key={m} value={m}>{m}{models.find((x) => x.id === m)?.free ? ` · ${t.settings.free}` : ''}</option>)}</select></div>);
   const schedulerText = app.agent?.scheduler_mode === 'job' ? t.agent.cron : t.agent.fallback;
   const next = app.agent?.next_check_at ? new Date(app.agent.next_check_at).toLocaleString('ru-RU') : '—';
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => <section className="glass card col" aria-label={title}><h3>{title}</h3>{children}</section>;
   return (
     <div className="col" style={{ gap: 16 }}>
       <h1>{t.settings.title}</h1>
@@ -37,7 +38,7 @@ export function SettingsScreen() {
           <div><span className="label">{t.gen.assumptions}</span><Seg label={t.gen.assumptions} value={s.default_assumptions_mode} onChange={(v) => save({ default_assumptions_mode: v })} options={Object.entries(t.gen.modes).map(([value, label]) => ({ value: value as Settings['default_assumptions_mode'], label }))} /></div>
         </div>
         <div><span className="label">{t.settings.defSystems}</span><div className="row wrap">{SYSTEM_IDS.map((id) => { const on = s.default_systems.includes(id); return <button key={id} className={`chip ${on ? 'on' : ''}`} aria-pressed={on} disabled={!admin} onClick={() => { const next = on ? s.default_systems.filter((x) => x !== id) : [...s.default_systems, id]; if (next.length) void save({ default_systems: next }); }}>{SYSTEM_NAMES[id]}</button>; })}</div></div>
-        <div><label className="label" htmlFor="ret">{t.settings.retention}</label><input id="ret" className="inset-field" type="number" min={20} max={5000} style={{ maxWidth: 160 }} disabled={!admin} defaultValue={s.history_retention} onBlur={(e) => { const v = Number(e.target.value); if (v >= 20 && v <= 5000 && v !== s.history_retention) void save({ history_retention: v }); }} /></div>
+        <div><label className="label" htmlFor="ret">{t.settings.retention}</label><input id="ret" className="field" type="number" min={20} max={5000} style={{ maxWidth: 160 }} disabled={!admin} defaultValue={s.history_retention} onBlur={(e) => { const v = Number(e.target.value); if (v >= 20 && v <= 5000 && v !== s.history_retention) void save({ history_retention: v }); }} /></div>
       </Section>
       <Section title={t.settings.agent}>
         <div className="row"><Switch on={s.auto_refresh_enabled} disabled={!admin} onChange={(v) => save({ auto_refresh_enabled: v })} label={t.settings.masterSwitch} /><span>{t.settings.masterSwitch}</span></div>

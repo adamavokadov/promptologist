@@ -1,10 +1,11 @@
+import { resolveEngineUrl } from '../apps/server/src/engine-url.ts';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { freshDb } from './helpers.ts';
 import { buildApp } from '../apps/server/src/routes.ts';
 import { resetRateLimits, clearIdentityCache } from '../apps/server/src/auth.ts';
 import { config } from '../apps/server/src/config.ts';
 import { VibeError, type VibeClient } from '../apps/server/src/vibe.ts';
-import { assertSafeBaseUrl, decryptSecret, encryptSecret, engineChat, engineJson, engineView, EngineOutputError, getEngineConfig, updateEngine } from '../apps/server/src/engine.ts';
+import { decryptSecret, encryptSecret, engineChat, engineJson, engineView, EngineOutputError, getEngineConfig, updateEngine } from '../apps/server/src/engine.ts';
 import { applyBridge, buildOptimizeMessages } from '../apps/server/src/optimizer.ts';
 import { BRIDGE_CONSTRAINT, clarifierOutputSchema, estimateTokens, extractBracketVars, optimizeRequestSchema, substituteBracketVars } from '../shared/src/index.ts';
 
@@ -14,12 +15,12 @@ const RAW = 'Напиши пост про котиков для инсты';
 const OUT = (o: Record<string, unknown> = {}) => JSON.stringify({ initial_score: 2, initial_critique: 'Слишком расплывчато', optimized_score: 9.5, changelog_explanation: ['Добавлена роль: эксперт SMM', 'Добавлена структура поста', 'Заданы ограничения'], final_prompt: 'You are an expert SMM manager. Write an Instagram post about cats. Structure: hook, body, question, hashtags.', framework_used: 'RTF', ...o });
 
 interface Calls { systems: string[]; users: string[] }
-function fakeEngineVibe(handlers: Partial<Record<'optimize' | 'clarify' | 'compress', () => string>> = {}, calls: Calls = { systems: [], users: [] }): VibeClient {
+function fakeEngineVibe(handlers: Partial<Record<'optimize' | 'clarify' | 'compress', () => string | Promise<string>>> = {}, calls: Calls = { systems: [], users: [] }): VibeClient {
   return {
     async chat(_m: string, messages: { role: string; content: string }[]) {
       const sys = messages[0]!.content; calls.systems.push(sys); calls.users.push(messages[messages.length - 1]!.content);
       const kind = sys.includes('prompt compressor') ? 'compress' : sys.includes('prepare an interview') ? 'clarify' : 'optimize';
-      const body = handlers[kind]?.() ?? (kind === 'clarify' ? JSON.stringify({ clarifying_questions: ['Возраст, вес, пол?', 'Дом или зал?', 'Цель: масса или похудение?'] })
+      const body = await handlers[kind]?.() ?? (kind === 'clarify' ? JSON.stringify({ clarifying_questions: ['Возраст, вес, пол?', 'Дом или зал?', 'Цель: масса или похудение?'] })
         : kind === 'compress' ? JSON.stringify({ compressed_prompt: 'Role: SMM expert. Task: Instagram cat post. Structure: hook, body, question, hashtags.' }) : OUT());
       return { content: body, totalTokens: 50, model: 'fake-model' };
     },
@@ -69,8 +70,8 @@ describe('engine: keys, SSRF, adapters, structured output', () => {
     expect((await updateEngine(db, { api_key: '' })).has_key).toBe(false);
   });
   it('blocks unsafe Custom_Base_URL values', async () => {
-    for (const u of ['http://example.com/v1', 'https://localhost/v1', 'https://127.0.0.1/v1', 'https://10.0.0.5/v1', 'https://169.254.169.254/', 'https://[::1]/', 'https://user:pw@93.184.216.34/', 'ftp://x.y', 'not a url']) await expect(assertSafeBaseUrl(u)).rejects.toMatchObject({ code: 'bad_base_url' });
-    await expect(assertSafeBaseUrl('https://93.184.216.34/v1')).resolves.toBeInstanceOf(URL);
+    for (const u of ['http://example.com/v1', 'https://localhost/v1', 'https://127.0.0.1/v1', 'https://10.0.0.5/v1', 'https://169.254.169.254/', 'https://[::1]/', 'https://user:pw@93.184.216.34/', 'ftp://x.y', 'not a url']) await expect(resolveEngineUrl(u)).rejects.toMatchObject({ code: 'bad_base_url' });
+    await expect(resolveEngineUrl('https://93.184.216.34/v1')).resolves.toMatchObject({ url: expect.any(URL) });
   });
   const setup = async (provider: string, extra: Record<string, unknown> = {}) => { const db = freshDb(); await updateEngine(db, { provider: provider as any, model: 'mdl', base_url: 'https://93.184.216.34/api', temperature: 0.3, api_key: 'sk-live-KEY12345', ...extra }); return db; };
   const msgs = [{ role: 'system' as const, content: 'SYS' }, { role: 'user' as const, content: 'hello' }];
@@ -198,6 +199,47 @@ describe('optimizer API', () => {
     expect((await call('PUT', '/api/optimizer/engine', U, { provider: 'platform' })).body.provider).toBe('platform');
     const t = await call('POST', '/api/optimizer/engine/test', U); expect(t.body).toMatchObject({ ok: true, provider: 'platform' });
     expect((await call('POST', '/api/optimizer/engine/test', M)).status).toBe(403);
+  });
+  it('preserves engine fields on partial updates and scopes keys to the selected destination', async () => {
+    const { call } = await mk();
+    const saved = await call('PUT', '/api/optimizer/engine', U, {
+      provider: 'anthropic', model: 'claude-opus-5-5', api_key: 'test-credential', base_url: 'https://93.184.216.34/v1',
+    });
+    expect(saved.status).toBe(200);
+    expect((await call('PUT', '/api/optimizer/engine', U, { temperature: 0.8 })).body)
+      .toMatchObject({ provider: 'anthropic', model: 'claude-opus-5-5', temperature: 0.8, has_key: true });
+    expect((await call('PUT', '/api/optimizer/engine', U, { provider: 'openai', model: 'gpt-6.2-sol' })).body)
+      .toMatchObject({ provider: 'openai', model: 'gpt-6.2-sol', base_url: '', has_key: false });
+  });
+  it('allows one overlapping answer and counts both model calls', async () => {
+    let complete!: (answer: string) => void;
+    let notify!: () => void;
+    const started = new Promise<void>((resolve) => { notify = resolve; });
+    const waiting = new Promise<string>((resolve) => { complete = resolve; });
+    const { call, db } = await mk({ optimize: () => { notify(); return waiting; } });
+    const draft = await call('POST', '/api/optimizer/run', U, { raw_input: RAW, workflow: 'clarify' });
+    const url = `/api/optimizer/items/${draft.body.id}/answer`;
+    const first = call('POST', url, U, { answers: ['', 'Команда'] });
+    await started;
+    try {
+      expect((await call('POST', url, U, { auto: true })).body.error.code).toBe('optimization_busy');
+    } finally { complete(OUT()); }
+    expect((await first).body.answers).toEqual(['', 'Команда', '']);
+    expect(db.get('SELECT tokens_used FROM optimizations WHERE id = ?', draft.body.id)?.tokens_used).toBe(100);
+  });
+  it('keeps the best saved compression after a non-improving retry', async () => {
+    const full = 'Please write a long, careful article about [Article Topic] for [Target Audience] and make sure to include a title.';
+    const short = 'Title and article: [Article Topic], for [Target Audience].';
+    let candidate = short;
+    const { call } = await mk({
+      optimize: () => OUT({ final_prompt: full }),
+      compress: () => JSON.stringify({ compressed_prompt: candidate }),
+    });
+    const result = await call('POST', '/api/optimizer/run', U, { raw_input: RAW, workflow: 'template' });
+    const path = `/api/optimizer/items/${result.body.id}/compress`;
+    expect((await call('POST', path, U)).body).toMatchObject({ no_gain: false, compressed_prompt: short });
+    candidate = 'Write something short but omit a variable.';
+    expect((await call('POST', path, U)).body).toMatchObject({ no_gain: true, compressed_prompt: short });
   });
   it('surfaces a bad model reply as 502 and stores nothing', async () => {
     const { call } = await mk({ optimize: () => 'not json' });

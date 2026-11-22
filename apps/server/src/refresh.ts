@@ -5,9 +5,9 @@ import {
 import { type Db, type Row, getSettings, setSettings, acquireLock, releaseLock } from './db.ts';
 import { VibeError, type VibeClient, type SearchResult, type ChatMessage } from './vibe.ts';
 import { getCurrentVersion, validateSkillDraft, rowToVersion, type SkillVersion } from './skills.ts';
-import { buildTransformerSystem, buildTransformerUser, extractJson } from './generation.ts';
+import { buildTransformerSystem, buildTransformerUser } from './generation.ts';
 import { computeNextCheck, computeRetry, dueSkills, MUTEX_NAME, MUTEX_TTL_MS, HARD_CAP_PER_DISPATCH, MIN_PAUSE_BETWEEN_RUNS_MS } from './scheduler.ts';
-import { uid, nowIso, jsonParse, sleep, randBetween, DAY_MS, log } from './util.ts';
+import { uid, nowIso, jsonParse, sleep, randBetween, DAY_MS, log, extractJson } from './util.ts';
 import { config } from './config.ts';
 import { TIMEOUTS } from './vibe.ts';
 

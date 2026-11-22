@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerationDTO, ResultDTO, SystemId } from '../../../shared/src/index.ts';
+import type { GenerationDTO, ResultDTO, SystemId } from '../../../shared/src/index.ts';
 import { t } from './strings.ru.ts';
 
 export class ApiError extends Error {
@@ -14,26 +14,28 @@ const setWake = (delta: number) => { const before = wakeCount > 0; wakeCount = M
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const WAKE_BUDGET_MS = 5 * 60_000;
 
-export async function request<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+async function request<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const method = init.method ?? 'GET';
   const started = Date.now(); let waking = false; let attempt = 0;
   try {
     for (;;) {
-      const slow = setTimeout(() => { if (!waking) { waking = true; setWake(1); } }, 3000);
+      const slow = setTimeout(() => { if (method === 'GET' && !waking) { waking = true; setWake(1); } }, 3000);
       try {
-        const res = await fetch(path, { method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'), headers: init.body !== undefined ? { 'Content-Type': 'application/json' } : undefined, body: init.body !== undefined ? JSON.stringify(init.body) : undefined });
+        const res = await fetch(path, { method, headers: init.body !== undefined ? { 'Content-Type': 'application/json' } : undefined, body: init.body !== undefined ? JSON.stringify(init.body) : undefined });
         clearTimeout(slow);
-        if (res.status === 503 && Date.now() - started < WAKE_BUDGET_MS) {
+        const text = await res.text(); let json: any = null;
+        try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+        const retryable = method === 'GET' || json?.error?.code === 'starting';
+        if (res.status === 503 && retryable && Date.now() - started < WAKE_BUDGET_MS) {
           if (!waking) { waking = true; setWake(1); }
           const ra = Number(res.headers.get('retry-after')); await sleep((Number.isFinite(ra) && ra > 0 ? Math.min(ra, 20) : Math.min(2 + attempt, 10)) * 1000); attempt++; continue;
         }
-        const text = await res.text(); let json: any = null;
-        try { json = text ? JSON.parse(text) : null; } catch { json = null; }
         if (!res.ok) throw new ApiError(res.status, json?.error?.code ?? `http_${res.status}`, json?.error?.message ?? t.common.error, Number(res.headers.get('retry-after')) || undefined);
         return json as T;
       } catch (e) {
         clearTimeout(slow);
         if (e instanceof ApiError) throw e;
-        const isGet = (init.method ?? 'GET') === 'GET';
+        const isGet = method === 'GET';
         if (isGet && Date.now() - started < WAKE_BUDGET_MS) { if (!waking) { waking = true; setWake(1); } await sleep(Math.min(2 + attempt, 10) * 1000); attempt++; continue; }
         throw new ApiError(0, 'network', t.common.error);
       }
@@ -103,4 +105,3 @@ export async function streamGenerate(path: string, body: unknown, h: GenHandlers
   clearTimeout(watchdog);
   if (!finished) { if (genId) await poll(); else h.onError?.(new ApiError(0, 'stream', t.common.error)); }
 }
-export type { GenerateRequest };

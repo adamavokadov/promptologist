@@ -75,6 +75,14 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   /* layout and density */
+  --card-min-width: 300px;
+  --form-column-min: 200px;
+  --library-sidebar-width: 220px;
+  --dialog-width: 560px;
+  --dialog-wide-width: 860px;
+  --dialog-height: 800px;
+  --drawer-width: 780px;
+  --toast-width: 360px;
   --sidebar-width: 280px;
   --sidebar-width-collapsed: 64px;
   --control-height: 32px;
@@ -113,27 +121,6 @@
   --status-warning: var(--color-warning);
   --status-error: var(--color-danger);
 
-  /* deprecated alias, remove when screens are migrated */
-  --bg: var(--color-canvas);
-  --glass: var(--color-surface);
-  --glass-strong: var(--color-surface-secondary);
-  --solid2: var(--color-surface-secondary);
-  --inset: var(--color-surface-secondary);
-  --solid: var(--color-surface);
-  --glass-border: var(--color-border);
-  --glass-hi: none;
-  --glass-shadow: none;
-  --tx: var(--color-text-primary);
-  --tx2: var(--color-text-secondary);
-  --tx3: var(--color-text-muted);
-  --accent1: var(--color-accent);
-  --accent2: var(--color-accent);
-  --ok: var(--color-success-text);
-  --warn: var(--color-warning);
-  --err: var(--color-danger);
-  --info: var(--color-text-secondary);
-  --diff-add: var(--color-success-bg);
-  --diff-del: var(--color-danger-bg);
 }
 
 :root[data-theme='dark'] {

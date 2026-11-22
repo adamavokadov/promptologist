@@ -14,8 +14,8 @@ import { type Db, type Row, getSettings, setSettings, indexDoc, unindexDoc, sear
 import { VibeError, type VibeClient } from './vibe.ts';
 import { resolveIdentity, rateLimit, type Identity } from './auth.ts';
 import { registerOptimizerRoutes } from './optimizer-routes.ts';
-import { AppError, uid, nowIso, jsonParse, log } from './util.ts';
-import { runGeneration, regenerateResult, rowToGeneration, rowToResult, extractJson, type GenEvent } from './generation.ts';
+import { AppError, uid, nowIso, jsonParse, log, extractJson } from './util.ts';
+import { runGeneration, regenerateResult, rowToGeneration, rowToResult, type GenEvent } from './generation.ts';
 import { getCurrentVersion, listVersions, skillToDto, rowToVersion, getVersionById } from './skills.ts';
 import { runManual, isRefreshBusy, type RefreshDeps } from './refresh.ts';
 import { acceptRun, verifyWithAnySecret, singleHeader, parseJobPayload, processJobRun, maybeLazyCheck, getJobSecrets } from './jobs.ts';
@@ -46,6 +46,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.addHook('onSend', async (_req, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
+    if (_req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     reply.header('Content-Security-Policy', `default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors ${FRAME_ANCESTORS}`);
     reply.header('Referrer-Policy', 'no-referrer');
     return payload;
@@ -87,13 +88,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerOptimizerRoutes(app, { db, vibe, me, admin });
 
   // ---- SSE helper ----
-  function openSse(req: FastifyRequest, reply: FastifyReply, generationId?: string): { send: (e: GenEvent) => void; close: () => void } {
+  function openSse(reply: FastifyReply, generationId?: string): { send: (e: GenEvent) => void; close: () => void } {
     reply.hijack();
     reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff', ...(generationId ? { 'X-Generation-Id': generationId } : {}) });
     reply.raw.write(': open\n\n');
     let closed = false;
     const hb = setInterval(() => { if (!closed) reply.raw.write(': hb\n\n'); }, 10_000);
-    req.raw.on('close', () => { closed = true; clearInterval(hb); });
+    reply.raw.on('close', () => { closed = true; clearInterval(hb); });
     return {
       send: (e) => { if (!closed) reply.raw.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`); },
       close: () => { clearInterval(hb); if (!closed) { closed = true; reply.raw.end(); } },
@@ -107,7 +108,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     if (!lim.ok) throw new AppError(429, 'rate_limited', 'Не более 6 генераций в минуту', lim.retryAfter);
     const body = generateRequestSchema.parse(req.body);
     const newId = uid();
-    const sse = openSse(req, reply, newId);
+    const sse = openSse(reply, newId);
     try { await runGeneration({ db, userId: id.userId, req: body, newId, emit: sse.send, vibe, onQuota: pauseOnQuota }); }
     catch (e) { sse.send({ type: 'card_error', system: body.systems[0]!, error: (e as Error).message.slice(0, 200) }); sse.send({ type: 'done', generation_id: '', status: 'failed' }); }
     sse.close();
@@ -119,9 +120,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const { answers } = z.object({ answers: z.array(z.string().max(2000)).max(3) }).parse(req.body);
     const g = db.get('SELECT * FROM generations WHERE id = ? AND user_id = ? AND deleted_at IS NULL', gid, id.userId);
     if (!g) throw new AppError(404, 'not_found', 'Генерация не найдена');
+    if (g.status !== 'draft_questions') throw new AppError(409, 'not_awaiting_answers', 'Эта генерация уже обработана');
     const qs = jsonParse<string[]>(g.questions, []);
     const extra = answers.map((a, i) => `Вопрос: ${qs[i] ?? ''}\nОтвет: ${a}`).join('\n');
-    const sse = openSse(req, reply, gid);
+    const sse = openSse(reply, gid);
     try {
       await runGeneration({ db, userId: id.userId, extraAnswers: extra, emit: sse.send, vibe, onQuota: pauseOnQuota,
         req: { raw_input: g.raw_input, systems: jsonParse(g.systems, []), language: g.language, options: optionsSchema.parse(jsonParse(g.options, {})), generation_id: gid } });

@@ -12,17 +12,22 @@ async function main() {
   let ready = false;
   const vibe = getVibe();
   const app = await buildApp({ db, vibe, ready: () => ready });
-  await app.listen({ port: config.port, host: '0.0.0.0' });
+  await app.listen({ port: config.port, host: config.host });
   log.info('listening', { port: config.port, dataDir: config.dataDir, fts: db.fts });
   // /healthz is served before seeding finishes; /api/* answers 503 + Retry-After until ready.
   setImmediate(async () => {
     try {
-      seedAll(db); ready = true;
+      seedAll(db);
+      ready = true;
       const deps = { db, vibe };
       await ensureSchedulerJob(db, vibe).then((s) => log.info('scheduler', { ...s }));
       for (const runId of pendingRuns(db)) await processJobRun(deps, { runId });
       await resumeUnfinished(deps);
-    } catch (e) { log.error('startup tasks failed', { err: String((e as Error).message) }); ready = true; }
+    } catch (e) {
+      log.error('startup tasks failed', { err: String((e as Error).message) });
+      if (!ready) process.exitCode = 1;
+      if (!ready) await app.close();
+    }
   });
   const daily = setInterval(() => { void ensureSchedulerJob(db, vibe).catch(() => {}); }, 24 * HOUR_MS);
   daily.unref();

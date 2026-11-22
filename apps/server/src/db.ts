@@ -170,12 +170,15 @@ export function searchDocs(db: Db, refType: string, userId: string | null, query
   if (tokens.length === 0) return [];
   if (db.fts) {
     const match = tokens.map((t) => `"${t.replace(/"/g, '')}"*`).join(' ');
-    const rows = db.all<{ ref_key: string }>('SELECT ref_key FROM search_fts WHERE search_fts MATCH ? LIMIT 2000', match);
-    const ids = rows.filter((r) => r.ref_key.startsWith(`${refType}:`)).map((r) => r.ref_key.slice(refType.length + 1));
-    if (userId === null || ids.length === 0) return ids;
-    const owned = db.all<{ ref_id: string }>(
-      `SELECT ref_id FROM search_docs WHERE ref_type = ? AND user_id = ? AND ref_id IN (${ids.map(() => '?').join(',')})`, refType, userId, ...ids);
-    return owned.map((r) => r.ref_id);
+    const userFilter = userId === null ? '' : ' AND d.user_id = ?';
+    const params = userId === null ? [refType, match] : [refType, match, userId];
+    return db.all<{ ref_id: string }>(
+      `SELECT d.ref_id FROM search_fts
+       JOIN search_docs d ON d.ref_type = ? AND d.ref_id = substr(search_fts.ref_key, length(d.ref_type) + 2)
+         AND search_fts.ref_key = d.ref_type || ':' || d.ref_id
+       WHERE search_fts MATCH ?${userFilter} LIMIT 2000`,
+      ...params,
+    ).map((row) => row.ref_id);
   }
   const where = tokens.map(() => 'LOWER(body) LIKE ?').join(' AND ');
   const likeParams = tokens.map((t) => `%${t.replace(/[%_]/g, '')}%`);
