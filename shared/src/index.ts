@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extractPromptVariables, fillPromptVariables } from './prompt.ts';
 
 // ---------- constants ----------
 export const SYSTEM_IDS = ['claude', 'chatgpt', 'kimi', 'qwen', 'grok'] as const;
@@ -28,7 +29,7 @@ export const GOLDEN_SET = [
 export const systemIdSchema = z.enum(SYSTEM_IDS);
 export const languageSchema = z.enum(['ru', 'en']);
 export const optionsSchema = z.object({
-  task_type: z.enum(['auto', 'code', 'writing', 'analysis', 'research', 'agent', 'creative']).default('auto'),
+  task_type: z.enum(['auto', 'code', 'writing', 'analysis', 'research', 'agent', 'creative', 'hypothesis']).default('auto'),
   detail: z.enum(['brief', 'standard', 'detailed']).default('standard'),
   assumptions_mode: z.enum(['assume', 'questions']).default('assume'),
   include_format: z.boolean().default(true),
@@ -158,20 +159,13 @@ export interface TemplateDTO {
 }
 
 // ---------- template helpers ----------
-const VAR_RE = /\{\{\s*([a-z0-9_]+)\s*\}\}/g;
-export function extractVariables(body: string): string[] {
-  const seen = new Set<string>();
-  for (const m of body.matchAll(VAR_RE)) seen.add(m[1]!);
-  return [...seen];
-}
+export const extractVariables = extractPromptVariables;
 export function validateTemplateVariables(body: string): { ok: boolean; error?: string; variables: string[] } {
   const variables = extractVariables(body);
   if (variables.length > LIMITS.maxTemplateVars) return { ok: false, error: `Too many variables (max ${LIMITS.maxTemplateVars})`, variables };
   return { ok: true, variables };
 }
-export function substituteVariables(body: string, values: Record<string, string>): string {
-  return body.replace(VAR_RE, (_m, name: string) => (values[name] !== undefined && values[name] !== '' ? values[name]! : `{{${name}}}`));
-}
+export const substituteVariables = fillPromptVariables;
 
 // ---------- language heuristic ----------
 export function cyrillicRatio(text: string): number {
@@ -190,3 +184,5 @@ export function detectPromptLanguage(text: string): 'ru' | 'en' | 'mixed' {
 }
 
 export * from './optimizer.ts';
+export * from './prompt.ts';
+export * from './team.ts';

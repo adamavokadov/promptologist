@@ -117,6 +117,9 @@ Skill checklist markers: a line in `## Validation Checklist` may contain `` `has
 13. Floating composer vs the Bitrix24 iframe auto-height (`vibe:resize`): `position: fixed` and `100vh` anchor to the full-height frame, not to the visible window, so the Brief's fixed composer cannot be built correctly until the placement iframe height behavior is confirmed (design.md A6, conflict C1, decision D4).
 14. Optimizer engine contracts (unverified, see `shared/src/optimizer.ts`): model ids other than Anthropic's come from the product spec and are not confirmed against provider docs; default base URLs and request shapes of OpenAI-compatible, Google, Alibaba and Moonshot providers follow public documentation and were tested only with mocked fetch; outbound egress from the Alaio platform to third-party providers is unverified; the platform gateway model list (`GET /models`) is not used for the optimizer catalog.
 15. Optimizer scope gaps: reverse engineering takes pasted text or .txt/.md/.csv/.json files up to 200 KB, not images or documents (needs a verified vision contract); token savings are estimates, not provider counts; the Generator and Optimizer do not share history yet.
+16. Third-party billing, external provider access, iframe host placement, and scheduler delivery still require a smoke test in the target Bitrix24 environment. The iframe resize message is documented by the platform.
+17. Team access uses explicitly assigned employee IDs. CRM records and automatic organizational department synchronization are outside this release.
+18. Run the staging checks in docs/prompt-workspace.md with real identities, the mobile placement and the configured provider before production deployment.
 
 ## 11. Runbook pointers
 Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: `node scripts/smoke.mjs --base http://127.0.0.1:$PORT --generate --jobs`.
@@ -157,6 +160,11 @@ Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: 
 33. Engine settings (2026-11-22): provider (platform gateway by default, anthropic, openai, google, alibaba, moonshot, custom OpenAI-compatible), model, Custom Base URL, temperature, API key. Admin-only writes; the key is AES-256-GCM encrypted with `ENGINE_SECRET` and never returned to the browser; keys cannot be saved without the secret; Custom Base URL must be https and may not point to private or link-local addresses (`ENGINE_ALLOW_PRIVATE=1` only for local proxies).
 34. Structured output (2026-11-22): every engine call is fenced (user text inside `<user_input>` as data), parsed from JSON, validated by zod, and re-asked once with the validation error; scores are clamped to 1..10 and are the model's own estimate. The language-bridge sentence is appended server-side, never trusted to the model.
 35. Compression (2026-11-22): the compressed prompt is accepted only if it keeps every [Variable] and is shorter by the approximate token estimate (no tokenizer dependency); otherwise the original is kept and the UI says so. Compression keeps the prompt language.
+36. Production audit: Node 22.12+ is the declared minimum and the platform target stays Node 24. The dependency lock keeps its existing graph except for the Node typings and their dependency.
+37. Custom engine connections use validated public DNS addresses through TLS. Changing the provider or effective URL requires a fresh provider key.
+38. Release 1.2.0 uses a unified home workspace with local routing rules, distinct advanced modes, a four-part checklist and role-based examples. See docs/prompt-workspace.md.
+39. Schema v3 stores team folders, folder-scoped employee roles and prompt revisions. Existing private rows stay in place. Reader and editor actions are authorized against the trusted Gateway portal UUID.
+40. Existing model workloads and one-off execution can negotiate a prompt SSE stream with a working event and heartbeat. The API preserves the JSON form for existing clients.
 
 ## 13. Conventions
 English identifiers and comments; Russian only in `strings.ru.ts`, seed templates and Russian meta-prompts. No UI strings outside `strings.ru.ts`. SQL only via prepared statements. zod validates every input. Commit style: imperative, phase-scoped (`phase 4: ...`). No stubs in working scenarios.
@@ -185,3 +193,5 @@ Applied patch scripts (newest last); sources in `patches/`.
 - 2026-11-21 2026-11-21-noyabr-tokens-shell: «Ноябрь» tokens, flat primitives, collapsible sidebar shell, analytics nav entry (WP0-WP2); decisions D1-D5 resolved
 - 2026-11-21 2026-11-21-obsidian-design-system: Obsidian / Linear Dark becomes the canonical design system (tokens dark+light, density, docs)
 - 2026-11-22 2026-11-22-optimizer-pro: Prompt Optimizer Pro (engine settings, four workflows, scores, compression, library with folders)
+- 2026-11-22 2026-11-22_production_audit: production audit for persistence, provider settings, responsive UI and dependency compatibility
+- 2026-11-22 2026-11-22_product_release: release the unified prompt workspace, team library and editable prompt revisions

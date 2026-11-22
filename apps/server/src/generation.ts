@@ -5,7 +5,7 @@ import {
 import { type Db, type Row, getSettings, indexDoc } from './db.ts';
 import { getVibe, VibeError, type VibeClient, type ChatMessage } from './vibe.ts';
 import { getCurrentVersion, runChecklist, type SkillVersion } from './skills.ts';
-import { uid, nowIso, jsonParse, log } from './util.ts';
+import { uid, nowIso, jsonParse, log, extractJson, AppError } from './util.ts';
 
 export const LANGUAGE_NAME = { ru: 'русском', en: 'английском (English)' } as const;
 
@@ -18,16 +18,11 @@ export function buildTransformerUser(intent: Intent | null, rawInput: string, o:
     intent ? `<intent>${JSON.stringify(intent)}</intent>` : '',
     `<raw_request>${rawInput}</raw_request>`,
     `<options>detail=${o.detail}; include_format=${o.include_format}; task_type=${o.task_type}</options>`,
+    o.task_type === 'hypothesis'
+      ? 'Design the finished prompt to generate a practical validation plan. Ask for the hypothesis, target segment, cheapest credible test, required resources, measurable success and stop thresholds, a timeframe and the decision after the test. Label inferred assumptions. Do not invent market evidence.'
+      : '',
     refinement ? `<refinement>${refinement}</refinement>` : '',
   ].filter(Boolean).join('\n');
-}
-
-export function extractJson(text: string): unknown {
-  const t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  try { return JSON.parse(t); } catch { /* try to locate object */ }
-  const s = t.indexOf('{'); const e = t.lastIndexOf('}');
-  if (s >= 0 && e > s) return JSON.parse(t.slice(s, e + 1));
-  throw new Error('No JSON object found');
 }
 
 export interface TransformCtx { vibe: VibeClient; model: string }
@@ -152,7 +147,8 @@ export async function runGeneration(p: RunGenerationParams): Promise<string> {
   let rawInput = p.req.raw_input;
   if (genId) {
     const g = db.get('SELECT * FROM generations WHERE id = ? AND user_id = ? AND deleted_at IS NULL', genId, userId);
-    if (!g) throw new Error('Generation not found');
+    if (!g) throw new AppError(404, 'not_found', 'Генерация не найдена');
+    if (g.status !== 'draft_questions') throw new AppError(409, 'not_awaiting_answers', 'Эта генерация уже обработана');
     rawInput = `${g.raw_input}\n\n${p.extraAnswers ?? ''}`.trim();
     db.run("UPDATE generations SET raw_input = ?, status = 'running', questions = NULL WHERE id = ?", rawInput, genId);
   } else {
@@ -219,7 +215,7 @@ function handleQuota(e: unknown, p: RunGenerationParams): void {
 export async function regenerateResult(p: { db: Db; userId: string; generationId: string; resultId: string; feedback?: string; vibe?: VibeClient; onQuota?: (r: string) => void }): Promise<ResultDTO> {
   const { db } = p; const vibe = p.vibe ?? getVibe();
   const g = db.get('SELECT * FROM generations WHERE id = ? AND user_id = ? AND deleted_at IS NULL', p.generationId, p.userId);
-  if (!g) throw new Error('Generation not found');
+  if (!g) throw new AppError(404, 'not_found', 'Генерация не найдена');
   const old = db.get('SELECT * FROM generation_results WHERE id = ? AND generation_id = ?', p.resultId, p.generationId);
   if (!old) throw new Error('Result not found');
   const system = old.skill_id as SystemId; const skill = getCurrentVersion(db, system);

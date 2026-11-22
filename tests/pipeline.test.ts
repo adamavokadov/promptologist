@@ -191,7 +191,7 @@ describe('refresh agent', () => {
     const cur = getCurrentVersion(db, 'claude');
     const win = await goldenTests(fakeVibe({ judgeWinner: 'new' }), 'm', 'j', 'claude', cur, cur.body_md + 'NEWSKILL', (a) => a);
     expect(win.every((g) => g.winner === 'new')).toBe(true);
-    const lose = await goldenTests(fakeVibe({ judgeWinner: 'old' }), 'm', 'j', 'claude', cur, cur.body_md + 'NEWSKILL', (a, b) => b);
+    const lose = await goldenTests(fakeVibe({ judgeWinner: 'old' }), 'm', 'j', 'claude', cur, cur.body_md + 'NEWSKILL', (_old, next) => next);
     expect(lose.every((g) => g.winner === 'old')).toBe(true);
   });
 });
@@ -291,7 +291,7 @@ describe('HTTP API', () => {
     const t = Math.floor(Date.now() / 1000);
     const sig = `t=${t},v1=${createHmac('sha256', secret).update(`${t}.${body}`).digest('hex')}`;
     const h = { 'content-type': 'application/json', 'x-vibe-caller-kind': 'schedule', 'vibe-signature': sig };
-    expect((await app.inject({ method: 'POST', url: '/internal/jobs/dispatcher', headers: { ...h, 'vibe-signature': sig.replace(/.$/, '0') }, payload: body })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/internal/jobs/dispatcher', headers: { ...h, 'vibe-signature': sig.replace(/.$/, (last) => last === '0' ? '1' : '0') }, payload: body })).statusCode).toBe(401);
     expect((await app.inject({ method: 'POST', url: '/internal/jobs/dispatcher', headers: { ...h, 'x-vibe-caller-kind': 'user' }, payload: body })).statusCode).toBe(401);
     expect((await app.inject({ method: 'POST', url: '/internal/jobs/dispatcher', headers: h, payload: body })).statusCode).toBe(200);
     expect((await app.inject({ method: 'POST', url: '/internal/jobs/dispatcher', headers: h, payload: body })).statusCode).toBe(200);

@@ -10,7 +10,7 @@ The owner works in GitHub Codespaces and deploys by himself. Agents produce sour
 
 ## 2. Stack and layout
 
-- Node >= 22.5 (devcontainer: 24), TypeScript strict, Fastify 5, `node:sqlite`, zod 4. React 18, Vite, Tailwind 3 with a hand-written design system in `index.css`, lucide-react, marked + DOMPurify. Tests: vitest.
+- Node >= 22.12 (devcontainer: 24), TypeScript strict, Fastify 5, `node:sqlite`, zod 4. React 18, Vite, Tailwind 3 with a hand-written design system in `index.css`, lucide-react, marked + DOMPurify. Tests: vitest.
 - `shared/src/index.ts`: constants, zod schemas, DTO types. `apps/server/src/*`: backend. `apps/web/src/*`: `App.tsx` (shell), `ui.tsx` (primitives), `strings.ru.ts` (all UI strings), `index.css`, `screens/*`, `components/*`. `scripts/`, `tests/`, `patches/` (archived patch scripts).
 
 ## 3. Commands
@@ -46,7 +46,7 @@ npm run pack:repomix              # refresh repomix-output.xml
 
 ## 6. Design system
 
-Before any UI task read `design.md` fully: Part 0 is the canonical Obsidian / Linear Dark system (dark default, light sibling, indigo accent, tokens in `apps/web/src/styles/tokens.css`); Part I (the «Ноябрь» brief) and Addendum A keep structure, accessibility, engineering and QA rules, and their visual values are superseded. Decisions D1–D5 are resolved (D2 superseded: dark default). Tokens and the shell are implemented; the screens still use deprecated flat aliases (`glass`, `card`, `inset-field`) until migrated. Run `npm run audit:contrast` after any token change.
+Before any UI task read `design.md` fully: Part 0 is the canonical Obsidian / Linear Dark system (dark default, light sibling, indigo accent, tokens in `apps/web/src/styles/tokens.css`); Part I (the «Ноябрь» brief) and Addendum A keep structure, accessibility, engineering and QA rules, and their visual values are superseded. Decisions D1–D5 are resolved (D2 superseded: dark default). The shell and screens use the shared `surface`, `card`, and `field` classes and canonical design tokens. Run `npm run audit:contrast` after any token change.
 
 ## 7. Patch-script standard
 

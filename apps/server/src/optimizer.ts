@@ -1,9 +1,10 @@
 import type { Db } from './db.ts';
-import { indexDoc, unindexDoc, searchDocs } from './db.ts';
+import { acquireLock, indexDoc, releaseLock, searchDocs, unindexDoc } from './db.ts';
+import { deletePromptVersions } from './prompt-versions.ts';
 import { AppError, jsonParse, nowIso, uid } from './util.ts';
-import { engineJson, getEngineConfig, type EngineDeps } from './engine.ts';
+import { engineJson, type EngineDeps } from './engine.ts';
 import {
-  BRIDGE_CONSTRAINT, DEFAULT_FOLDERS, OPT_LIMITS, clarifierOutputSchema, compressOutputSchema, estimateTokens, extractBracketVars, frameworkOf,
+  BRIDGE_CONSTRAINT, DEFAULT_FOLDERS, OPT_LIMITS, clarifierOutputSchema, compressOutputSchema, estimateTokens, extractBracketVars,
   optimizerOutputSchema, type FolderDTO, type OptPreset, type OptWorkflow, type OptimizationDTO, type OptimizeRequest,
 } from '../../../shared/src/index.ts';
 
@@ -36,8 +37,8 @@ const TONE_GUIDE: Record<string, string> = {
   no_yapping: 'Tone of the answer: no fluff. The target model must give the answer immediately, with no introduction, no conclusion, and no filler.',
 };
 const OUTPUT_SCHEMA = `Return ONE JSON object and nothing else:
-{"initial_score": number 1-10 (quality of the user's ORIGINAL request as a prompt), "initial_critique": string (one or two sentences, Russian, what is weak),
-"optimized_score": number 1-10 (quality of your final prompt), "changelog_explanation": string[] (3 to 7 items, Russian, each says WHAT was added and WHY it helps the target model),
+{"initial_critique": string (one or two sentences, Russian, what is missing),
+"changelog_explanation": string[] (3 to 7 items, Russian, each says WHAT was added and WHY it helps the target model),
 "final_prompt": string (the ready-to-use prompt), "framework_used": string (framework or goal applied, short)}`;
 
 export interface BuildCtx { req: OptimizeRequest; answers?: { q: string; a: string }[]; auto?: boolean }
@@ -57,6 +58,7 @@ export function buildOptimizeMessages(c: BuildCtx): { role: 'system' | 'user'; c
       ? 'LANGUAGE BRIDGE: write "final_prompt" entirely in dense, natural English even though the input may be in Russian. Do NOT add any instruction about the answer language: the system appends it.'
       : 'Write "final_prompt" in the same language as the user input (Russian input gives a Russian prompt).',
     'Fields initial_critique and changelog_explanation are always in Russian. Never invent facts about the user; mark assumptions explicitly.',
+    'Make role, context, constraints and output format explicit where applicable. Prefer short labelled lines if compatible with the selected framework. Never invent missing domain facts or assign numeric scores.',
     OUTPUT_SCHEMA,
   ].filter(Boolean);
   let user = `<user_input>\n${req.raw_input}\n</user_input>`;
@@ -89,7 +91,7 @@ export function applyBridge(prompt: string, bridge: boolean): string {
   const cleaned = prompt.split('\n').filter((l) => !/CRITICAL INSTRUCTION:\s*Perform all internal reasoning/i.test(l)).join('\n').trimEnd();
   return `${cleaned}\n\n${BRIDGE_CONSTRAINT}`;
 }
-export function varsFor(workflow: OptWorkflow, prompt: string): string[] { return workflow === 'template' || workflow === 'reverse' ? extractBracketVars(prompt) : []; }
+function varsFor(prompt: string): string[] { return extractBracketVars(prompt); }
 
 // ---------- persistence ----------
 export function rowToOptimization(r: Row): OptimizationDTO {
@@ -100,7 +102,7 @@ export function rowToOptimization(r: Row): OptimizationDTO {
     clarifying_questions: jsonParse(r.questions, []), answers: jsonParse(r.answers, []),
     initial_score: r.initial_score ?? null, initial_critique: r.initial_critique ?? '', optimized_score: r.optimized_score ?? null,
     changelog_explanation: jsonParse(r.changelog, []), final_prompt: prompt, framework_used: r.framework_used ?? '',
-    variables: varsFor(r.workflow, prompt), var_values: jsonParse(r.var_values, {}),
+    variables: varsFor(prompt), var_values: jsonParse(r.var_values, {}),
     compressed_prompt: r.compressed_prompt ?? null, tokens_before: r.tokens_before ?? null, tokens_after: r.tokens_after ?? null,
     is_favorite: !!r.is_favorite, folder_id: r.folder_id ?? null, tags: jsonParse(r.tags, []), provider: r.provider ?? '', model: r.model ?? '', created_at: r.created_at,
   };
@@ -117,10 +119,14 @@ export function reindex(db: Db, r: Row): void {
 const RETENTION_CAP = 2000;
 function applyRetention(db: Db, userId: string): void {
   const extra = db.all<{ id: string }>(`SELECT id FROM optimizations WHERE user_id = ? AND deleted_at IS NULL AND is_favorite = 0 AND folder_id IS NULL ORDER BY created_at DESC LIMIT -1 OFFSET ?`, userId, RETENTION_CAP);
-  for (const e of extra) { db.run('DELETE FROM optimizations WHERE id = ?', e.id); unindexDoc(db, 'opt', e.id); }
+  for (const { id } of extra) {
+    db.run('DELETE FROM optimizations WHERE id = ?', id);
+    unindexDoc(db, 'opt', id);
+    deletePromptVersions(db, 'optimization', id);
+  }
 }
 
-export function ensureDefaultFolders(db: Db, userId: string): void {
+function ensureDefaultFolders(db: Db, userId: string): void {
   const have = new Set(db.all<{ default_key: string }>('SELECT default_key FROM folders WHERE user_id = ? AND default_key IS NOT NULL', userId).map((r) => r.default_key));
   for (const f of DEFAULT_FOLDERS) if (!have.has(f.key)) db.run('INSERT OR IGNORE INTO folders(id, user_id, name, default_key, created_at) VALUES(?,?,?,?,?)', uid(), userId, f.name, f.key, nowIso());
 }
@@ -148,59 +154,107 @@ export function createFolder(db: Db, userId: string, name: string): FolderDTO {
 
 // ---------- workflows ----------
 interface Meta { userId: string; deps: EngineDeps }
-function insertRow(db: Db, userId: string, req: OptimizeRequest, status: string, extra: Row = {}): string {
+function insertRow(db: Db, userId: string, req: OptimizeRequest, status: OptimizationDTO['status'], questions: string[] = []): string {
   const id = uid(); const now = nowIso();
   const { raw_input, workflow, ...options } = req;
   db.run(`INSERT INTO optimizations(id, user_id, workflow, status, raw_input, options, questions, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)`,
-    id, userId, workflow, status, raw_input, JSON.stringify(options), JSON.stringify(extra.questions ?? []), now, now);
+    id, userId, workflow, status, raw_input, JSON.stringify(options), JSON.stringify(questions), now, now);
   return id;
 }
-async function optimizeInto(db: Db, m: Meta, id: string, req: OptimizeRequest, answers?: { q: string; a: string }[], auto?: boolean): Promise<void> {
-  const r = await engineJson(db, m.deps, buildOptimizeMessages({ req, answers, auto }), optimizerOutputSchema, { maxTokens: 4500 });
-  const finalPrompt = applyBridge(r.data.final_prompt, req.bridge);
-  db.run(`UPDATE optimizations SET status = 'ok', answers = ?, initial_score = ?, initial_critique = ?, optimized_score = ?, changelog = ?, final_prompt = ?, framework_used = ?,
-    provider = ?, model = ?, tokens_used = ?, updated_at = ? WHERE id = ?`,
-    JSON.stringify((answers ?? []).map((x) => x.a)), r.data.initial_score, r.data.initial_critique, r.data.optimized_score, JSON.stringify(r.data.changelog_explanation),
-    finalPrompt, r.data.framework_used, r.provider, r.model, r.tokens, nowIso(), id);
-  reindex(db, db.get('SELECT * FROM optimizations WHERE id = ?', id)!);
-  applyRetention(db, m.userId);
+const ITEM_LEASE_MS = 10 * 60_000;
+
+async function withItemLease<T>(db: Db, id: string, run: () => Promise<T>): Promise<T> {
+  const name = `optimizer:${id}`;
+  const holder = uid();
+  if (!acquireLock(db, name, holder, ITEM_LEASE_MS)) {
+    throw new AppError(409, 'optimization_busy', 'Эта запись уже обрабатывается');
+  }
+  try {
+    return await run();
+  } finally {
+    releaseLock(db, name, holder);
+  }
 }
+
+const optimize = (db: Db, deps: EngineDeps, ctx: BuildCtx) =>
+  engineJson(db, deps, buildOptimizeMessages(ctx), optimizerOutputSchema, { maxTokens: 4500 });
+
+function saveOptimization(db: Db, userId: string, id: string, ctx: BuildCtx, result: Awaited<ReturnType<typeof optimize>>): OptimizationDTO {
+  const { data } = result;
+  db.run(`UPDATE optimizations SET status = 'ok', answers = ?, initial_score = ?, initial_critique = ?, optimized_score = ?, changelog = ?,
+    final_prompt = ?, framework_used = ?, provider = ?, model = ?, tokens_used = tokens_used + ?, updated_at = ? WHERE id = ?`,
+    JSON.stringify((ctx.answers ?? []).map(({ a }) => a)), data.initial_score ?? null, data.initial_critique, data.optimized_score ?? null,
+    JSON.stringify(data.changelog_explanation), applyBridge(data.final_prompt, ctx.req.bridge), data.framework_used,
+    result.provider, result.model, result.tokens, nowIso(), id);
+  const row = getOwned(db, id, userId);
+  reindex(db, row);
+  applyRetention(db, userId);
+  return rowToOptimization(row);
+}
+
 export async function runOptimization(db: Db, m: Meta, req: OptimizeRequest): Promise<OptimizationDTO> {
   if (req.workflow === 'clarify') {
     const q = await engineJson(db, m.deps, buildClarifyMessages(req), clarifierOutputSchema, { maxTokens: 800 });
     const questions = q.data.clarifying_questions.slice(0, OPT_LIMITS.questions);
-    const id = insertRow(db, m.userId, req, 'draft_questions', { questions });
-    db.run('UPDATE optimizations SET provider = ?, model = ?, tokens_used = ? WHERE id = ?', q.provider, q.model, q.tokens, id);
-    return rowToOptimization(getOwned(db, id, m.userId));
+    return db.tx(() => {
+      const id = insertRow(db, m.userId, req, 'draft_questions', questions);
+      db.run('UPDATE optimizations SET provider = ?, model = ?, tokens_used = ? WHERE id = ?', q.provider, q.model, q.tokens, id);
+      return rowToOptimization(getOwned(db, id, m.userId));
+    });
   }
-  const id = insertRow(db, m.userId, req, 'running');
-  try { await optimizeInto(db, m, id, req); } catch (e) { db.run('DELETE FROM optimizations WHERE id = ?', id); throw e; }
-  return rowToOptimization(getOwned(db, id, m.userId));
+  const ctx = { req };
+  const result = await optimize(db, m.deps, ctx);
+  return db.tx(() => {
+    const id = insertRow(db, m.userId, req, 'ok');
+    return saveOptimization(db, m.userId, id, ctx, result);
+  });
 }
+
 export async function answerOptimization(db: Db, m: Meta, id: string, body: { answers: string[]; auto: boolean }): Promise<OptimizationDTO> {
-  const row = getOwned(db, id, m.userId);
-  if (row.status !== 'draft_questions') throw new AppError(409, 'not_awaiting_answers', 'Эта запись уже обработана');
-  const opts = jsonParse<Record<string, any>>(row.options, {}); const questions = jsonParse<string[]>(row.questions, []);
-  const req: OptimizeRequest = { workflow: row.workflow, raw_input: row.raw_input, preset: opts.preset ?? 'auto', output_format: opts.output_format ?? 'none', tone: opts.tone ?? 'none', bridge: !!opts.bridge };
-  const answered = questions.map((q, i) => ({ q, a: (body.answers[i] ?? '').trim() })).filter((x) => x.a);
-  const auto = body.auto || answered.length === 0;
-  await optimizeInto(db, m, id, req, questions.map((q, i) => ({ q, a: (body.answers[i] ?? '').trim() })).filter((x) => x.a), auto);
-  return rowToOptimization(getOwned(db, id, m.userId));
+  getOwned(db, id, m.userId);
+  return withItemLease(db, id, async () => {
+    const row = getOwned(db, id, m.userId);
+    if (row.status !== 'draft_questions') throw new AppError(409, 'not_awaiting_answers', 'Эта запись уже обработана');
+    const item = rowToOptimization(row);
+    const req = { ...item.options, workflow: item.workflow, raw_input: item.raw_input };
+    const answers = body.auto ? [] : item.clarifying_questions.map((q, i) => ({ q, a: (body.answers[i] ?? '').trim() }));
+    const ctx = { req, answers, auto: !answers.some(({ a }) => a) };
+    const result = await optimize(db, m.deps, ctx);
+    return db.tx(() => {
+      getOwned(db, id, m.userId);
+      return saveOptimization(db, m.userId, id, ctx, result);
+    });
+  });
 }
+
 export async function compressOptimization(db: Db, m: Meta, id: string): Promise<OptimizationDTO & { no_gain: boolean; saved_pct: number }> {
-  const row = getOwned(db, id, m.userId);
-  if (row.status !== 'ok' || !row.final_prompt) throw new AppError(409, 'nothing_to_compress', 'Сначала сформируйте промпт');
-  const opts = jsonParse<Record<string, any>>(row.options, {}); const bridge = !!opts.bridge;
-  const original = String(row.final_prompt); const before = estimateTokens(original);
-  const r = await engineJson(db, m.deps, buildCompressMessages(original), compressOutputSchema, { maxTokens: 4500 });
-  const candidate = applyBridge(r.data.compressed_prompt, bridge);
-  const origVars = varsFor(row.workflow, original); const keepsVars = origVars.every((v) => candidate.includes(`[${v}]`));
-  const after = estimateTokens(candidate);
-  const ok = keepsVars && after < before;
-  db.run('UPDATE optimizations SET compressed_prompt = ?, tokens_before = ?, tokens_after = ?, tokens_used = tokens_used + ?, updated_at = ? WHERE id = ?',
-    ok ? candidate : null, before, ok ? after : before, r.tokens, nowIso(), id);
-  const dto = rowToOptimization(getOwned(db, id, m.userId));
-  return { ...dto, no_gain: !ok, saved_pct: ok ? Math.round(((before - after) / before) * 100) : 0 };
+  getOwned(db, id, m.userId);
+  return withItemLease(db, id, async () => {
+    const item = rowToOptimization(getOwned(db, id, m.userId));
+    if (item.status !== 'ok' || !item.final_prompt) {
+      throw new AppError(409, 'nothing_to_compress', 'Сначала сформируйте промпт');
+    }
+    const before = estimateTokens(item.final_prompt);
+    const best = item.compressed_prompt ? estimateTokens(item.compressed_prompt) : before;
+    const result = await engineJson(db, m.deps, buildCompressMessages(item.final_prompt), compressOutputSchema, { maxTokens: 4500 });
+    const candidate = applyBridge(result.data.compressed_prompt, item.options.bridge);
+    const after = estimateTokens(candidate);
+    const current = getOwned(db, id, m.userId);
+    if (current.final_prompt !== item.final_prompt) {
+      throw new AppError(409, 'version_conflict', 'Промпт изменился во время сжатия. Повторите для новой версии.');
+    }
+    const candidateVars = varsFor(candidate);
+    const sameVars = candidateVars.length === item.variables.length && item.variables.every((v) => candidateVars.includes(v));
+    const improved = sameVars && after < best;
+    if (improved) {
+      db.run('UPDATE optimizations SET compressed_prompt = ?, tokens_before = ?, tokens_after = ?, tokens_used = tokens_used + ?, updated_at = ? WHERE id = ?',
+        candidate, before, after, result.tokens, nowIso(), id);
+    } else {
+      db.run('UPDATE optimizations SET tokens_used = tokens_used + ? WHERE id = ?', result.tokens, id);
+    }
+    const dto = rowToOptimization(getOwned(db, id, m.userId));
+    return { ...dto, no_gain: !improved, saved_pct: improved ? Math.round((before - after) / before * 100) : 0 };
+  });
 }
 
 // ---------- library queries ----------
@@ -216,4 +270,3 @@ export function listOptimizations(db: Db, userId: string, q: { q?: string; folde
   return { items: rows.map((r) => { const d = rowToOptimization(r); return { id: d.id, workflow: d.workflow, status: d.status, preview: d.raw_input.slice(0, 140), prompt_preview: d.final_prompt.slice(0, 200),
     initial_score: d.initial_score, optimized_score: d.optimized_score, is_favorite: d.is_favorite, folder_id: d.folder_id, tags: d.tags, created_at: d.created_at, has_variables: d.variables.length > 0 }; }), total, page: q.page };
 }
-export { getEngineConfig, frameworkOf };

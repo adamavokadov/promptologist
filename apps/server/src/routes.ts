@@ -6,7 +6,7 @@ import { z, ZodError } from 'zod';
 import { diffLines } from 'diff';
 import {
   generateRequestSchema, templateInputSchema, generalizeOutputSchema, settingsSchema, systemIdSchema, optionsSchema,
-  extractVariables, validateTemplateVariables, substituteVariables, LIMITS,
+  extractVariables, validateTemplateVariables, substituteVariables, promptIdSchema, LIMITS,
   type SystemId, type TemplateDTO, type GenerationDTO,
 } from '../../../shared/src/index.ts';
 import { config } from './config.ts';
@@ -14,8 +14,11 @@ import { type Db, type Row, getSettings, setSettings, indexDoc, unindexDoc, sear
 import { VibeError, type VibeClient } from './vibe.ts';
 import { resolveIdentity, rateLimit, type Identity } from './auth.ts';
 import { registerOptimizerRoutes } from './optimizer-routes.ts';
-import { AppError, uid, nowIso, jsonParse, log } from './util.ts';
-import { runGeneration, regenerateResult, rowToGeneration, rowToResult, extractJson, type GenEvent } from './generation.ts';
+import { registerPromptFeatures, versionQuery } from './prompt-features.ts';
+import { appendPromptVersion, deletePromptVersions, listVersionsForPrompt } from './prompt-versions.ts';
+import { registerTeamRoutes } from './team-routes.ts';
+import { AppError, uid, nowIso, jsonParse, log, extractJson } from './util.ts';
+import { runGeneration, regenerateResult, rowToGeneration, rowToResult, type GenEvent } from './generation.ts';
 import { getCurrentVersion, listVersions, skillToDto, rowToVersion, getVersionById } from './skills.ts';
 import { runManual, isRefreshBusy, type RefreshDeps } from './refresh.ts';
 import { acceptRun, verifyWithAnySecret, singleHeader, parseJobPayload, processJobRun, maybeLazyCheck, getJobSecrets } from './jobs.ts';
@@ -46,6 +49,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.addHook('onSend', async (_req, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
+    if (_req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     reply.header('Content-Security-Policy', `default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors ${FRAME_ANCESTORS}`);
     reply.header('Referrer-Policy', 'no-referrer');
     return payload;
@@ -85,15 +89,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const admin = (req: FastifyRequest): Identity => { const i = me(req); if (!i.isAdmin) throw new AppError(403, 'admin_required', 'Требуются права администратора'); return i; };
   const sysId = (v: unknown): SystemId => systemIdSchema.parse(v);
   registerOptimizerRoutes(app, { db, vibe, me, admin });
+  registerPromptFeatures(app, db, { vibe }, me);
+  registerTeamRoutes(app, db, me);
 
   // ---- SSE helper ----
-  function openSse(req: FastifyRequest, reply: FastifyReply, generationId?: string): { send: (e: GenEvent) => void; close: () => void } {
+  function openSse(reply: FastifyReply, generationId?: string): { send: (e: GenEvent) => void; close: () => void } {
     reply.hijack();
     reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff', ...(generationId ? { 'X-Generation-Id': generationId } : {}) });
     reply.raw.write(': open\n\n');
     let closed = false;
     const hb = setInterval(() => { if (!closed) reply.raw.write(': hb\n\n'); }, 10_000);
-    req.raw.on('close', () => { closed = true; clearInterval(hb); });
+    reply.raw.on('close', () => { closed = true; clearInterval(hb); });
     return {
       send: (e) => { if (!closed) reply.raw.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`); },
       close: () => { clearInterval(hb); if (!closed) { closed = true; reply.raw.end(); } },
@@ -107,7 +113,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     if (!lim.ok) throw new AppError(429, 'rate_limited', 'Не более 6 генераций в минуту', lim.retryAfter);
     const body = generateRequestSchema.parse(req.body);
     const newId = uid();
-    const sse = openSse(req, reply, newId);
+    const sse = openSse(reply, newId);
     try { await runGeneration({ db, userId: id.userId, req: body, newId, emit: sse.send, vibe, onQuota: pauseOnQuota }); }
     catch (e) { sse.send({ type: 'card_error', system: body.systems[0]!, error: (e as Error).message.slice(0, 200) }); sse.send({ type: 'done', generation_id: '', status: 'failed' }); }
     sse.close();
@@ -119,9 +125,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const { answers } = z.object({ answers: z.array(z.string().max(2000)).max(3) }).parse(req.body);
     const g = db.get('SELECT * FROM generations WHERE id = ? AND user_id = ? AND deleted_at IS NULL', gid, id.userId);
     if (!g) throw new AppError(404, 'not_found', 'Генерация не найдена');
+    if (g.status !== 'draft_questions') throw new AppError(409, 'not_awaiting_answers', 'Эта генерация уже обработана');
     const qs = jsonParse<string[]>(g.questions, []);
     const extra = answers.map((a, i) => `Вопрос: ${qs[i] ?? ''}\nОтвет: ${a}`).join('\n');
-    const sse = openSse(req, reply, gid);
+    const sse = openSse(reply, gid);
     try {
       await runGeneration({ db, userId: id.userId, extraAnswers: extra, emit: sse.send, vibe, onQuota: pauseOnQuota,
         req: { raw_input: g.raw_input, systems: jsonParse(g.systems, []), language: g.language, options: optionsSchema.parse(jsonParse(g.options, {})), generation_id: gid } });
@@ -216,22 +223,34 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
   app.post('/api/templates', async (req) => { const id = insertTemplate(me(req).userId, templateInputSchema.parse(req.body)); return rowToTemplate(db.get('SELECT * FROM templates WHERE id = ?', id)!); });
   app.get('/api/templates/:id', async (req) => rowToTemplate(ownTemplate((req.params as any).id, me(req).userId)));
+  app.get('/api/templates/:id/versions', async (req) => {
+    const t = ownTemplate(promptIdSchema.parse(req.params).id, me(req).userId);
+    if (t.is_seed) throw new AppError(403, 'seed_readonly', 'Стартовый шаблон доступен только для чтения');
+    return listVersionsForPrompt(db, 'template', { id: t.id, body: t.body, created_at: t.created_at }, versionQuery.parse(req.query).before);
+  });
   app.patch('/api/templates/:id', async (req) => {
     const t = ownTemplate((req.params as any).id, me(req).userId);
     if (t.is_seed || t.user_id !== me(req).userId) throw new AppError(403, 'seed_readonly', 'Стартовые шаблоны можно только дублировать');
-    const p = templateInputSchema.partial().parse(req.body);
+    const p = templateInputSchema.partial().extend({ expected_version: z.number().int().positive().optional() }).parse(req.body);
     const merged = { title: p.title ?? t.title, description: p.description ?? t.description, body: p.body ?? t.body, language: p.language ?? t.language,
       default_systems: p.default_systems ?? jsonParse(t.default_systems, []), tags: p.tags ?? jsonParse(t.tags, []) };
     const v = validateTemplateVariables(merged.body); if (!v.ok) throw new AppError(400, 'too_many_variables', v.error!);
-    db.run('UPDATE templates SET title = ?, description = ?, body = ?, language = ?, default_systems = ?, tags = ?, updated_at = ? WHERE id = ?',
-      merged.title, merged.description, merged.body, merged.language, JSON.stringify(merged.default_systems), JSON.stringify(merged.tags), nowIso(), t.id);
-    indexDoc(db, 'tpl', t.id, t.user_id, `${merged.title} ${merged.description} ${merged.body}`);
-    return rowToTemplate(db.get('SELECT * FROM templates WHERE id = ?', t.id)!);
+    return db.tx(() => {
+      appendPromptVersion(db, 'template', { id: t.id, body: t.body, created_at: t.created_at }, merged.body, p.expected_version);
+      db.run('UPDATE templates SET title = ?, description = ?, body = ?, language = ?, default_systems = ?, tags = ?, updated_at = ? WHERE id = ?',
+        merged.title, merged.description, merged.body, merged.language, JSON.stringify(merged.default_systems), JSON.stringify(merged.tags), nowIso(), t.id);
+      indexDoc(db, 'tpl', t.id, t.user_id, `${merged.title} ${merged.description} ${merged.body}`);
+      return rowToTemplate(db.get('SELECT * FROM templates WHERE id = ?', t.id)!);
+    });
   });
   app.delete('/api/templates/:id', async (req) => {
     const t = ownTemplate((req.params as any).id, me(req).userId);
     if (t.is_seed || t.user_id !== me(req).userId) throw new AppError(403, 'seed_readonly', 'Стартовые шаблоны нельзя удалить');
-    db.run('UPDATE templates SET deleted_at = ? WHERE id = ?', nowIso(), t.id); unindexDoc(db, 'tpl', t.id);
+    db.tx(() => {
+      db.run('UPDATE templates SET deleted_at = ? WHERE id = ?', nowIso(), t.id);
+      unindexDoc(db, 'tpl', t.id);
+      deletePromptVersions(db, 'template', t.id);
+    });
     return { ok: true };
   });
   app.post('/api/templates/:id/duplicate', async (req) => {
@@ -243,7 +262,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const t = ownTemplate((req.params as any).id, me(req).userId);
     const { values } = z.object({ values: z.record(z.string(), z.string().max(8000)) }).parse(req.body);
     const text = substituteVariables(t.body, values);
-    const missing = extractVariables(text);
+    const missing = extractVariables(t.body).filter((name) => !Object.hasOwn(values, name) || !values[name]?.trim());
     db.run('UPDATE templates SET usage_count = usage_count + 1 WHERE id = ?', t.id);
     return { text, missing, language: t.language, systems: jsonParse(t.default_systems, []) };
   });

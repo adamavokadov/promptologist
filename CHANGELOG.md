@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-22
+
 ### Added
 - `design.md`: canonical «Ноябрь» design system (owner's AI-first brief v1.0, formatting normalised, wording unchanged) plus Addendum A: mapping to Promptologist screens, WCAG contrast audit with proposed token overrides, iframe/composer conflict, open decisions D1-D5, implementation map. The UI redesign itself is not implemented yet.
 - `agents.md`: operating manual for AI agents (language policy, hard rules, patch-script standard, Codespaces commands, UI QA, report format) and `CLAUDE.md` that imports it for Claude Code.
@@ -13,6 +15,10 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Prompt Optimizer Pro: four workflows (one-click, clarifier with three questions, bracket-variable templates, reverse engineering), beginner goals and pro frameworks including ASD-STE100, output format and tone selectors, RU-EN-RU language bridge, initial and optimized score with changelog, prompt compression with approximate token savings.
 - Library with automatic history, favorites, default and custom folders, tags and full-text search.
 - Engine settings (provider, model, Custom Base URL, temperature, encrypted API key) with a connection test; `ENGINE_SECRET` and `ENGINE_ALLOW_PRIVATE` environment variables.
+- A single home composer with automatic routing, a manual override, role-based examples, and a hypothesis validation preset.
+- A prompt checklist, a compression diff, placeholder fields, clipboard shortcuts to external chats, and one-off model execution.
+- Portal-scoped shared folders with reader and editor permissions, plus revision history for editable prompts and templates.
+- Editable draft answer suggestions for Generator and Optimizer clarification.
 
 ### Changed
 - README.md: project documents section; the Design bullet points to the target design system.
@@ -22,10 +28,23 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Design system switched to Obsidian / Linear Dark: new token palette (dark default and light), denser controls (32px), tighter radii, flat bordered surfaces, indigo accent; docs updated (design.md Part 0, README, agents.md).
 - `scripts/contrast-audit.mjs` now composites translucent tokens and checks status tints, accent text, elevated surfaces and the indigo viz ramp.
 - Default theme is dark again (`DEFAULT_SETTINGS.theme`); stored choices still win.
+- Match the Node typings to the oldest supported runtime and use an ESM-native Vite config.
+- Use shared Obsidian surfaces, fields, responsive grids and accessible browser dialogs across screens.
+- List published model presets and accept account-specific model IDs for other providers.
+- Group secondary actions, model explanations and token estimates in accessible disclosure panels.
+- Stream slow model operations in the app while retaining JSON responses for API clients.
 
 ### Fixed
 - Removed placeholder entries (`...`, `id: summary`) that were written into CHANGELOG.md and HANDOFF.md by running the docs tool usage examples verbatim.
 - `npm run dev:server` now starts (`--experimental-transform-types`); parameter properties in `vibe.ts` are not supported by strip-only mode.
+- Preserve engine settings on partial updates and send provider-compatible completion parameters.
+- Serialize optimizer answers and compression, count clarification tokens, and retain the best saved compression.
+- Keep copy, folder editing, filtering, navigation and long text usable on narrow screens.
+- Use the response lifecycle for SSE cleanup and prevent repeated generation answers.
+
+### Security
+- Resolve and pin checked public addresses for custom engine connections and clear saved provider keys on destination changes.
+- Prevent shared caches from storing authenticated API responses.
 
 ## [1.1.0] - 2026-11-20
 

@@ -17,10 +17,10 @@ import { LIMITS } from '../shared/src/index.ts';
 
 describe('template variables', () => {
   it('extracts unique names and tolerates spaces', () => {
-    expect(extractVariables('a {{ x }} b {{x}} c {{y_2}} {{Bad}}')).toEqual(['x', 'y_2']);
+    expect(extractVariables('a {{ x }} b {{x}} c {{y_2}} {{Клиент}}')).toEqual(['x', 'y_2', 'Клиент']);
   });
   it('substitutes known values and keeps unknown placeholders', () => {
-    expect(substituteVariables('Hi {{name}}, {{ city }}', { name: 'Ann' })).toBe('Hi Ann, {{city}}');
+    expect(substituteVariables('Hi {{name}}, {{ city }}', { name: 'Ann' })).toBe('Hi Ann, {{ city }}');
   });
   it('rejects more than 12 variables', () => {
     const body = Array.from({ length: 13 }, (_, i) => `{{v${i}}}`).join(' ');

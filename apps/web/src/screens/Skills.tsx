@@ -26,7 +26,7 @@ export function SkillsScreen() {
       {!items ? <Skeletons n={5} h={150} /> : <div className="grid-cards stagger">{items.map((s) => {
         const last = daysFrom(s.last_check_at); const next = daysFrom(s.next_check_at);
         const tip = !admin ? t.common.noAccess : s.refresh_blocked_reason === 'cooldown' ? t.skills.cooldown : s.refresh_blocked_reason === 'busy' ? t.skills.busy : '';
-        return <article key={s.id} className="glass card hover col">
+        return <article key={s.id} className="surface card hover col">
           <div className="row spread"><div className="row"><SystemDot id={s.id} /><h3>{s.display_name}</h3><span className="badge info">v{s.current_version}</span></div>
             <span className="row small tx2"><span className={`dot ${statusDot(s.status)}`} />{t.skills.status[s.status]}</span></div>
           <p className="small tx2" style={{ margin: 0 }}>{s.model_lineup.join(' · ')}</p>
@@ -51,18 +51,18 @@ function SkillDrawer({ id, admin, onClose, onChanged }: { id: SystemId; admin: b
   return (
     <Drawer title={<span className="row"><SystemDot id={id} />{SYSTEM_NAMES[id]} {d && <span className="badge info">v{d.skill.current_version}</span>}</span>} onClose={onClose}>
       {!d ? <Skeletons n={2} h={140} /> : <div className="col">
-        {d.version.changelog.length > 0 && <div className="glass dense card"><span className="label">{t.skills.changelog}</span><ul className="tx2 small" style={{ margin: 0, paddingLeft: 18 }}>{d.version.changelog.map((c, i) => <li key={i}>{c.change}</li>)}</ul></div>}
+        {d.version.changelog.length > 0 && <div className="surface card"><span className="label">{t.skills.changelog}</span><ul className="tx2 small" style={{ margin: 0, paddingLeft: 18 }}>{d.version.changelog.map((c, i) => <li key={i}>{c.change}</li>)}</ul></div>}
         <div className="row wrap" role="tablist">{(['skill', 'versions', 'sources'] as const).map((k) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}>{t.skills.tabs[k]}</button>)}</div>
         {tab === 'skill' && <><div className="small tx3">{t.skills.lineup}: {d.skill.model_lineup.join(' · ')}</div><Markdown md={d.version.body_md} /></>}
         {tab === 'versions' && <div className="col">
           <p className="small tx3" style={{ margin: 0 }}>{t.skills.pickTwo}</p>
-          {vers.map((v) => <div key={v.id} className="glass dense card row wrap" style={{ padding: 12 }}>
+          {vers.map((v) => <div key={v.id} className="surface card row wrap" style={{ padding: 12 }}>
             <input type="checkbox" checked={sel.includes(v.version)} onChange={() => toggleSel(v.version)} aria-label={`${t.skills.diff} v${v.version}`} />
             <strong>v{v.version}</strong><span className="badge">{t.skills.origin[v.origin]}</span>{v.is_current && <span className="badge ok">{t.skills.current}</span>}<span className="small tx3 grow">{fmtDate(v.created_at)}</span>
             {!v.is_current && <button className="btn sm" disabled={!admin} title={admin ? '' : t.common.noAccess} onClick={() => setRb(v)}>{t.skills.rollback}</button>}</div>)}
           {diff && <div className="prompt-box full" aria-label={`${t.skills.diff} v${diff.from} → v${diff.to}`}>{diff.parts.map((p, i) => <div key={i} className={p.added ? 'diff-add' : p.removed ? 'diff-del' : ''} style={{ opacity: !p.added && !p.removed ? 0.7 : 1 }}>{p.value.split('\n').filter((l, j, a) => j < a.length - 1 || l).map((l, j) => <div key={j}>{p.added ? '+ ' : p.removed ? '- ' : '  '}{l}</div>)}</div>)}</div>}
         </div>}
-        {tab === 'sources' && <div className="col">{d.version.sources.length === 0 ? <p className="tx3">—</p> : d.version.sources.map((s) => <div key={s.url} className="glass dense card" style={{ padding: 12 }}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a><div className="small tx3">{new URL(s.url).hostname} · {s.checked_at}</div></div>)}</div>}
+        {tab === 'sources' && <div className="col">{d.version.sources.length === 0 ? <p className="tx3">—</p> : d.version.sources.map((s) => <div key={s.url} className="surface card" style={{ padding: 12 }}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a><div className="small tx3">{new URL(s.url).hostname} · {s.checked_at}</div></div>)}</div>}
       </div>}
       {rb && <ConfirmModal title={`${t.skills.rollback} v${rb.version}`} text={t.skills.rollbackConfirm} onConfirm={() => rollback(rb)} onClose={() => setRb(null)} />}
     </Drawer>

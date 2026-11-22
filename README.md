@@ -5,6 +5,10 @@ A web app for Alaio Vibecode (Bitrix24). The user writes a raw idea in their own
 UI language: Russian. Generated prompts: RU or EN (user's choice). Explanations ("what was improved", assumptions): always Russian.
 
 ## Features
+
+- The **New prompt** workspace routes a single input to Generation, Optimization or Clarification. Manual modes, role-based examples and a hypothesis validation preset are available.
+- Prompt results include a four-part checklist, forms for placeholders, a compression diff, copy-and-open actions and one-off model execution.
+- The Library includes portal-scoped team folders with reader and editor roles, and version history for editable prompt bodies. See [product and design decisions](docs/prompt-workspace.md).
 - **Generator**: intent analysis, per-system transformation (2 in parallel), checklist validation with one repair call, SSE streaming with polling fallback, clarifying-questions mode, per-card regeneration with feedback and variant history, compare view.
 - **History / Favourites / Templates**: full-text search, filters, soft delete, favourites per prompt, templates with `{{variables}}`, LLM generalisation, 9 seed templates, JSON export and template import.
 - **Prompt optimizer**: four workflows (one-click, clarifier, bracket-variable templates, reverse engineering), goal and framework presets, output format and tone, RU-EN-RU bridge, scores with changelog, prompt compression, library with folders and search; engine settings with provider adapters (key encrypted by `ENGINE_SECRET`).

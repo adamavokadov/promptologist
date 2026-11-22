@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerationDTO, ResultDTO, SystemId } from '../../../shared/src/index.ts';
+import type { GenerationDTO, ResultDTO, SystemId } from '../../../shared/src/index.ts';
 import { t } from './strings.ru.ts';
 
 export class ApiError extends Error {
@@ -14,26 +14,28 @@ const setWake = (delta: number) => { const before = wakeCount > 0; wakeCount = M
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const WAKE_BUDGET_MS = 5 * 60_000;
 
-export async function request<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+async function request<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const method = init.method ?? 'GET';
   const started = Date.now(); let waking = false; let attempt = 0;
   try {
     for (;;) {
-      const slow = setTimeout(() => { if (!waking) { waking = true; setWake(1); } }, 3000);
+      const slow = setTimeout(() => { if (method === 'GET' && !waking) { waking = true; setWake(1); } }, 3000);
       try {
-        const res = await fetch(path, { method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'), headers: init.body !== undefined ? { 'Content-Type': 'application/json' } : undefined, body: init.body !== undefined ? JSON.stringify(init.body) : undefined });
+        const res = await fetch(path, { method, headers: init.body !== undefined ? { 'Content-Type': 'application/json' } : undefined, body: init.body !== undefined ? JSON.stringify(init.body) : undefined });
         clearTimeout(slow);
-        if (res.status === 503 && Date.now() - started < WAKE_BUDGET_MS) {
+        const text = await res.text(); let json: any = null;
+        try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+        const retryable = method === 'GET' || json?.error?.code === 'starting';
+        if (res.status === 503 && retryable && Date.now() - started < WAKE_BUDGET_MS) {
           if (!waking) { waking = true; setWake(1); }
           const ra = Number(res.headers.get('retry-after')); await sleep((Number.isFinite(ra) && ra > 0 ? Math.min(ra, 20) : Math.min(2 + attempt, 10)) * 1000); attempt++; continue;
         }
-        const text = await res.text(); let json: any = null;
-        try { json = text ? JSON.parse(text) : null; } catch { json = null; }
         if (!res.ok) throw new ApiError(res.status, json?.error?.code ?? `http_${res.status}`, json?.error?.message ?? t.common.error, Number(res.headers.get('retry-after')) || undefined);
         return json as T;
       } catch (e) {
         clearTimeout(slow);
         if (e instanceof ApiError) throw e;
-        const isGet = (init.method ?? 'GET') === 'GET';
+        const isGet = method === 'GET';
         if (isGet && Date.now() - started < WAKE_BUDGET_MS) { if (!waking) { waking = true; setWake(1); } await sleep(Math.min(2 + attempt, 10) * 1000); attempt++; continue; }
         throw new ApiError(0, 'network', t.common.error);
       }
@@ -45,6 +47,59 @@ export const post = <T>(p: string, body: unknown = {}) => request<T>(p, { method
 export const put = <T>(p: string, body: unknown) => request<T>(p, { method: 'PUT', body });
 export const patch = <T>(p: string, body: unknown) => request<T>(p, { method: 'PATCH', body });
 export const del = <T>(p: string) => request<T>(p, { method: 'DELETE' });
+
+async function* sseFrames(body: ReadableStream<Uint8Array>) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let end: number;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const type = /^event: (.+)$/m.exec(frame)?.[1];
+        const data = /^data: (.+)$/m.exec(frame)?.[1];
+        if (type && data) yield { type, data };
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
+export async function postPrompt<T>(path: string, body: unknown = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(body) });
+  } catch { throw new ApiError(0, 'network', t.common.error); }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.error?.code ?? 'error', data?.error?.message ?? t.common.error,
+      Number(res.headers.get('retry-after')) || undefined);
+  }
+  if (!res.body || !res.headers.get('content-type')?.includes('text/event-stream')) {
+    const data = await res.json().catch(() => null);
+    if (data === null) throw new ApiError(0, 'stream', t.prompt.streamInterrupted);
+    return data as T;
+  }
+  try {
+    for await (const frame of sseFrames(res.body)) {
+      if (frame.type === 'result') return JSON.parse(frame.data) as T;
+      if (frame.type === 'failure') {
+        const error = JSON.parse(frame.data);
+        throw new ApiError(error.status, error.code, error.message, error.retryAfter);
+      }
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+  }
+  throw new ApiError(0, 'stream', t.prompt.streamInterrupted);
+}
 
 // ---- generation transport: SSE over fetch, with polling fallback ----
 export interface GenHandlers {
@@ -88,19 +143,12 @@ export async function streamGenerate(path: string, body: unknown, h: GenHandlers
   genId = res.headers.get('x-generation-id') ?? '';
   // If the proxy buffers the stream, no events arrive: fall back to polling after 5 seconds.
   const watchdog = setTimeout(() => { if (!gotEvent && !finished) void poll(); }, 5000);
-  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
   try {
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      buf += dec.decode(value, { stream: true }); let i: number;
-      while ((i = buf.indexOf('\n\n')) >= 0) {
-        const frame = buf.slice(0, i); buf = buf.slice(i + 2);
-        const type = /^event: (.+)$/m.exec(frame)?.[1]; const data = /^data: (.+)$/m.exec(frame)?.[1];
-        if (type && data) { try { handle(type, JSON.parse(data)); } catch { /* ignore malformed frame */ } }
-      }
+    for await (const frame of sseFrames(res.body)) {
+      if (finished) break;
+      try { handle(frame.type, JSON.parse(frame.data)); } catch { /* ignore malformed frame */ }
     }
   } catch { /* stream broke: fall back to polling below */ }
   clearTimeout(watchdog);
   if (!finished) { if (genId) await poll(); else h.onError?.(new ApiError(0, 'stream', t.common.error)); }
 }
-export type { GenerateRequest };

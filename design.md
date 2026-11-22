@@ -901,3 +901,14 @@ Suggested order: tokens and primitives, shell and sidebar, screen canvases, comp
 ### A10. Token values
 
 Superseded on 2026-11-21 by Part 0 §0.3. The source of truth is `apps/web/src/styles/tokens.css` (dark default on `:root[data-theme='dark']`, light on `:root`). The «Ноябрь» values that were listed here are retired.
+
+## Prompt workspace v1.2
+
+The [Prompt workspace specification](docs/prompt-workspace.md) records the default entry flow, routing rules, checklist, compression comparison, prompt fields, role examples and team access decisions for this version.
+
+- Use the existing Obsidian surfaces, spacing, controls and typography for the composer, result and library.
+- Keep the primary copy action adjacent to the prompt. Place model commentary, token estimates, prompt execution, external destinations and editing controls in expandable sections.
+- Put variable fields above the rendered prompt. Update the preview and copy action from the same value. Keep the original and compressed variant labels visible above the comparison.
+- Mark removed text with a strike and added text with an underline. Use the existing muted, danger and success tokens. Show the two alternatives if the diff cannot be calculated within its budget.
+- Keep shared folder visibility and user roles explicit in settings. Show a read-only indicator to readers. An editor selects a history entry and saves it as a new revision.
+- On narrow screens use the same keyboard-accessible accordions and wrapping grids. Keep the workspace in document flow for the Bitrix24 auto-height iframe.

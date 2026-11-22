@@ -1,15 +1,14 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
-import net from 'node:net';
 import { config } from './config.ts';
+import { engineUrlFetch, resolveEngineUrl } from './engine-url.ts';
 import { type Db } from './db.ts';
-import { log, AppError, jsonParse } from './util.ts';
+import { log, AppError, extractJson, jsonParse } from './util.ts';
 import { VibeError, parseErrorEnvelope, type ChatMessage, type VibeClient } from './vibe.ts';
-import { engineConfigSchema, engineUpdateSchema, ENGINE_CATALOG, type EngineConfig, type EngineView, type Provider } from '../../../shared/src/index.ts';
+import { engineConfigSchema, engineUpdateSchema, ENGINE_CATALOG, supportsCustomTemperature, type EngineConfig, type EngineView, type Provider } from '../../../shared/src/index.ts';
 import type { z } from 'zod';
 
 /** Public defaults (from provider docs, overridable with Custom_Base_URL; not verified against Nov 2026 docs). */
-export const DEFAULT_BASE_URLS: Record<string, string> = {
+const DEFAULT_BASE_URLS: Record<string, string> = {
   anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com/v1', google: 'https://generativelanguage.googleapis.com/v1beta',
   alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', moonshot: 'https://api.moonshot.ai/v1',
 };
@@ -55,40 +54,31 @@ export function engineView(db: Db): EngineView {
   if (blob) { try { const k = decryptSecret(blob); hint = k.length > 8 ? `…${k.slice(-4)}` : '…'; } catch { hint = ''; } }
   return { ...cfg, has_key: !!blob, key_hint: hint, secret_configured: config.engineSecret.length >= 16, catalog: ENGINE_CATALOG, default_base_urls: DEFAULT_BASE_URLS };
 }
-export async function updateEngine(db: Db, input: z.infer<typeof engineUpdateSchema>): Promise<EngineView> {
-  const body = engineUpdateSchema.parse(input);
-  const next = engineConfigSchema.parse({ ...getEngineConfig(db), ...Object.fromEntries(Object.entries(body).filter(([k, v]) => k !== 'api_key' && v !== undefined)) });
-  if (next.base_url) await assertSafeBaseUrl(next.base_url);
-  if (next.provider === 'custom' && !next.base_url) throw new AppError(400, 'base_url_required', 'Для custom-провайдера нужен Custom Base URL');
-  const put = (k: string, v: unknown) => db.run('INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, JSON.stringify(v));
-  const del = (k: string) => db.run('DELETE FROM settings WHERE key = ?', k);
-  // Encrypt first: a missing ENGINE_SECRET must fail before anything is written.
-  const blob = body.api_key === undefined ? undefined : body.api_key === '' ? '' : encryptSecret(body.api_key.trim());
-  db.tx(() => { put(SETTINGS_KEY, next); if (blob === '') del(KEY_SETTINGS_KEY); else if (blob) put(KEY_SETTINGS_KEY, blob); });
-  return engineView(db);
-}
+const engineBase = (cfg: EngineConfig) => (cfg.base_url || DEFAULT_BASE_URLS[cfg.provider] || '').replace(/\/+$/, '');
 
-// ---------- SSRF guard for Custom_Base_URL ----------
-export function isPrivateAddress(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number) as [number, number];
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+export async function updateEngine(db: Db, input: z.infer<typeof engineUpdateSchema>): Promise<EngineView> {
+  const { api_key: key, ...fields } = input;
+  const current = getEngineConfig(db);
+  const providerChanged = fields.provider !== undefined && fields.provider !== current.provider;
+  const inherited = providerChanged ? { ...current, base_url: '' } : current;
+  const next = engineConfigSchema.parse({ ...inherited, ...fields });
+  if (next.provider === 'custom' && !next.base_url) {
+    throw new AppError(400, 'base_url_required', 'Для custom-провайдера нужен Custom Base URL');
   }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return isPrivateAddress(v.slice(7));
-  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
-}
-export async function assertSafeBaseUrl(raw: string): Promise<URL> {
-  let u: URL;
-  try { u = new URL(raw); } catch { throw new AppError(400, 'bad_base_url', 'Custom Base URL: некорректный адрес'); }
-  const allowPrivate = config.engineAllowPrivate;
-  if (u.protocol !== 'https:' && !(allowPrivate && u.protocol === 'http:')) throw new AppError(400, 'bad_base_url', 'Custom Base URL должен начинаться с https://');
-  if (u.username || u.password) throw new AppError(400, 'bad_base_url', 'Custom Base URL не должен содержать логин и пароль');
-  if (allowPrivate) return u;
-  const host = u.hostname.replace(/^\[|\]$/g, '');
-  const addrs = net.isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => { throw new AppError(400, 'bad_base_url', 'Custom Base URL: хост не найден'); })).map((a) => a.address);
-  if (host === 'localhost' || addrs.some(isPrivateAddress)) throw new AppError(400, 'bad_base_url', 'Custom Base URL указывает на внутренний адрес: это запрещено');
-  return u;
+  if (next.base_url) await resolveEngineUrl(next.base_url);
+
+  const destinationChanged = providerChanged || engineBase(current) !== engineBase(next);
+  const blob = key ? encryptSecret(key) : undefined;
+  const put = (k: string, v: unknown) => db.run('INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, JSON.stringify(v));
+  db.tx(() => {
+    if (JSON.stringify(current) !== JSON.stringify(getEngineConfig(db))) {
+      throw new AppError(409, 'engine_settings_changed', 'Настройки движка изменились. Обновите страницу и повторите.');
+    }
+    put(SETTINGS_KEY, next);
+    if (blob) put(KEY_SETTINGS_KEY, blob);
+    else if (key === '' || destinationChanged) db.run('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEY);
+  });
+  return engineView(db);
 }
 
 // ---------- provider adapters ----------
@@ -113,7 +103,7 @@ async function httpJson(f: typeof fetch, url: string, headers: Record<string, st
 
 /** One chat completion through the configured engine. JSON mode is a hint only; callers always validate. */
 export async function engineChat(db: Db, deps: EngineDeps, messages: ChatMessage[], o: { json?: boolean; maxTokens?: number } = {}): Promise<EngineChat> {
-  const cfg = getEngineConfig(db); const f = deps.fetchImpl ?? fetch; const maxTokens = o.maxTokens ?? 4000;
+  const cfg = getEngineConfig(db); const maxTokens = o.maxTokens ?? 4000;
   if (cfg.provider === 'platform') {
     const r = await deps.vibe.chat(cfg.model, messages, { temperature: cfg.temperature, maxTokens, json: o.json });
     return { content: r.content, tokens: r.totalTokens, model: r.model, provider: 'platform' };
@@ -121,14 +111,16 @@ export async function engineChat(db: Db, deps: EngineDeps, messages: ChatMessage
   const blob = storedKey(db);
   if (!blob) throw new AppError(409, 'engine_key_missing', 'Для выбранного провайдера не задан ключ API (Настройки, Движок)');
   const key = decryptSecret(blob);
-  const base = (cfg.base_url || DEFAULT_BASE_URLS[cfg.provider] || '').replace(/\/+$/, '');
+  const base = engineBase(cfg);
   if (!base) throw new AppError(400, 'base_url_required', 'Для custom-провайдера нужен Custom Base URL');
-  if (cfg.base_url) await assertSafeBaseUrl(cfg.base_url);
+  const custom = cfg.base_url ? await resolveEngineUrl(cfg.base_url) : undefined;
+  const f = deps.fetchImpl ?? (custom ? engineUrlFetch(custom) : fetch);
+  const sampling = supportsCustomTemperature(cfg.provider, cfg.model) ? { temperature: cfg.temperature } : {};
   const sys = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n'); const rest = messages.filter((m) => m.role !== 'system');
   try {
     if (cfg.provider === 'anthropic') {
       const j = await httpJson(f, `${base}/v1/messages`, { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        { model: cfg.model, max_tokens: maxTokens, temperature: Math.min(1, cfg.temperature), system: sys, messages: rest.map((m) => ({ role: m.role, content: m.content })) }, key);
+        { model: cfg.model, max_tokens: maxTokens, ...(sampling.temperature === undefined ? {} : { temperature: Math.min(1, sampling.temperature) }), system: sys, messages: rest.map((m) => ({ role: m.role, content: m.content })) }, key);
       const text = (Array.isArray(j.content) ? j.content : []).filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('');
       if (!text) throw new VibeError(502, 'EMPTY_COMPLETION', 'Model returned no content', 'server');
       return { content: text, tokens: Number(j.usage?.input_tokens ?? 0) + Number(j.usage?.output_tokens ?? 0), model: String(j.model ?? cfg.model), provider: 'anthropic' };
@@ -143,9 +135,10 @@ export async function engineChat(db: Db, deps: EngineDeps, messages: ChatMessage
     }
     // openai, alibaba, moonshot, custom: OpenAI-compatible chat completions
     const j = await httpJson(f, `${base}/chat/completions`, { Authorization: `Bearer ${key}` },
-      { model: cfg.model, messages, temperature: cfg.temperature, max_tokens: maxTokens, ...(o.json && cfg.provider === 'openai' ? { response_format: { type: 'json_object' } } : {}) }, key);
+      { model: cfg.model, messages, ...sampling, ...(cfg.provider === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
+        ...(o.json && cfg.provider === 'openai' ? { response_format: { type: 'json_object' } } : {}) }, key);
     const content = j?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') throw new VibeError(502, 'EMPTY_COMPLETION', 'Model returned no content', 'server');
+    if (typeof content !== 'string' || !content.trim()) throw new VibeError(502, 'EMPTY_COMPLETION', 'Model returned no content', 'server');
     return { content, tokens: Number(j.usage?.total_tokens ?? 0), model: String(j.model ?? cfg.model), provider: cfg.provider };
   } catch (e) {
     if (e instanceof VibeError) log.warn('engine call failed', { provider: cfg.provider, code: e.code, kind: e.kind });
@@ -154,13 +147,6 @@ export async function engineChat(db: Db, deps: EngineDeps, messages: ChatMessage
 }
 
 // ---------- structured output ----------
-export function extractJsonObject(text: string): unknown {
-  const t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  try { return JSON.parse(t); } catch { /* locate the outermost object */ }
-  const s = t.indexOf('{'); const e = t.lastIndexOf('}');
-  if (s >= 0 && e > s) return JSON.parse(t.slice(s, e + 1));
-  throw new Error('No JSON object found');
-}
 export class EngineOutputError extends AppError {
   constructor(detail: string) { super(502, 'engine_bad_output', `Модель вернула ответ в неверном формате: ${detail}`); }
 }
@@ -171,7 +157,7 @@ export async function engineJson<S extends z.ZodTypeAny>(db: Db, deps: EngineDep
     const r = await engineChat(db, deps, msgs, { json: true, maxTokens: o.maxTokens });
     tokens += r.tokens;
     try {
-      const parsed = schema.safeParse(extractJsonObject(r.content));
+      const parsed = schema.safeParse(extractJson(r.content));
       if (parsed.success) return { data: parsed.data, tokens, model: r.model, provider: r.provider };
       last = parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.') || 'root'}: ${i.message}`).join('; ');
     } catch (e) { last = (e as Error).message; }

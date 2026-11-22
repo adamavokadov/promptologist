@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extractPromptVariables, fillPromptVariables, PROMPT_BODY_MAX } from './prompt.ts';
 
 // ---------- constants ----------
 export const OPT_WORKFLOWS = ['magic', 'clarify', 'template', 'reverse'] as const;
@@ -9,7 +10,7 @@ export const OPT_PRESETS = [...GOAL_PRESETS, ...FRAMEWORK_PRESETS] as const;
 export type OptPreset = (typeof OPT_PRESETS)[number];
 export const OUTPUT_FORMATS = ['none', 'table', 'json', 'markdown_list', 'prose', 'code', 'slides'] as const;
 export const TONES = ['none', 'academic', 'persuasive', 'friendly', 'concise', 'no_yapping'] as const;
-export const OPT_LIMITS = { rawMin: 3, rawMax: 12000, answerMax: 1000, promptMax: 20000, questions: 3, folderName: 60, maxFolders: 40 } as const;
+export const OPT_LIMITS = { rawMin: 3, rawMax: 12000, answerMax: 1000, promptMax: PROMPT_BODY_MAX, questions: 3, folderName: 60, variableValue: 2000, maxFolders: 40 } as const;
 export const DEFAULT_FOLDERS = [
   { key: 'work', name: 'Работа' }, { key: 'marketing', name: 'Маркетинг' }, { key: 'coding', name: 'Код' },
 ] as const;
@@ -20,25 +21,36 @@ export const BRIDGE_CONSTRAINT = 'CRITICAL INSTRUCTION: Perform all internal rea
 // ---------- engine (provider, model, key) ----------
 export const PROVIDERS = ['platform', 'anthropic', 'openai', 'google', 'alibaba', 'moonshot', 'custom'] as const;
 export type Provider = (typeof PROVIDERS)[number];
-export interface CatalogModel { id: string; label: string; verified: boolean; recommended?: boolean }
-/** Model ids other than Anthropic's are taken from the product spec and are NOT verified against provider docs: use the custom model field if one differs. */
+export interface CatalogModel { id: string; label: string; recommended?: boolean }
+/** Published model IDs for the supported API adapters. Other providers accept a model ID from the user's account. */
 export const ENGINE_CATALOG: Record<Exclude<Provider, 'platform' | 'custom'>, CatalogModel[]> = {
-  anthropic: [{ id: 'claude-opus-5-5', label: 'Claude Opus 5.5', verified: true, recommended: true }, { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', verified: true }],
-  openai: [{ id: 'chatgpt-6-omni', label: 'ChatGPT 6 Omni', verified: false }, { id: 'gpt-6-reasoning', label: 'GPT-6 Reasoning', verified: false }],
-  google: [{ id: 'gemini-4-ultra', label: 'Gemini 4 Ultra', verified: false }, { id: 'gemini-4-pro', label: 'Gemini 4 Pro', verified: false }],
-  alibaba: [{ id: 'qwen-4-max', label: 'Qwen 4 Max', verified: false }, { id: 'qwen-4-coder', label: 'Qwen 4 Coder', verified: false }],
-  moonshot: [{ id: 'kimi-3.1-ultra', label: 'Kimi 3.1 Ultra', verified: false }],
+  anthropic: [{ id: 'claude-opus-5-5', label: 'Claude Opus 5.5' }, { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', recommended: true }],
+  openai: [{ id: 'gpt-6.2-sol', label: 'GPT-6.2 Sol' }],
+  google: [],
+  alibaba: [],
+  moonshot: [],
 };
+export function supportsCustomTemperature(provider: Provider, model: string): boolean {
+  if (provider === 'anthropic') return !/^claude-(?:\w+-5|opus-4-(?:[7-9]|\d{2,}))(?:-|$)/i.test(model);
+  if (provider === 'openai') return !/^(?:gpt-[56](?:[.\-]|$)|o\d)/i.test(model);
+  return true;
+}
+
+export const DEFAULT_ENGINE_MODEL = 'bitrix/bitrixgpt-5.5';
 export const engineConfigSchema = z.object({
   provider: z.enum(PROVIDERS).default('platform'),
-  model: z.string().trim().min(1).max(120).default('bitrix/bitrixgpt-5.5'),
+  model: z.string().trim().min(1).max(120).default(DEFAULT_ENGINE_MODEL),
   base_url: z.string().trim().max(300).default(''),
   temperature: z.number().min(0).max(1.5).default(0.4),
 });
 export type EngineConfig = z.infer<typeof engineConfigSchema>;
-export const engineUpdateSchema = engineConfigSchema.partial().extend({
+export const engineUpdateSchema = z.object({
+  provider: engineConfigSchema.shape.provider.unwrap().optional(),
+  model: engineConfigSchema.shape.model.unwrap().optional(),
+  base_url: engineConfigSchema.shape.base_url.unwrap().optional(),
+  temperature: engineConfigSchema.shape.temperature.unwrap().optional(),
   /** Plain key from the admin form. Empty string clears the stored key; omitted keeps it. */
-  api_key: z.string().max(500).optional(),
+  api_key: z.string().trim().max(500).optional(),
 });
 export interface EngineView extends EngineConfig {
   has_key: boolean; key_hint: string; secret_configured: boolean;
@@ -64,7 +76,7 @@ const score = z.coerce.number().transform((n) => Math.min(10, Math.max(1, Math.r
 const textList = z.array(z.string().trim().min(1).max(600)).max(12);
 /** What the engine must return for an optimization run (parsed and validated server-side). */
 export const optimizerOutputSchema = z.object({
-  initial_score: score, initial_critique: z.string().trim().max(600).default(''), optimized_score: score,
+  initial_score: score.optional(), initial_critique: z.string().trim().max(600).default(''), optimized_score: score.optional(),
   changelog_explanation: textList.min(1), final_prompt: z.string().trim().min(1).max(OPT_LIMITS.promptMax),
   framework_used: z.string().trim().max(60).default(''),
 });
@@ -82,16 +94,9 @@ export interface OptimizationDTO {
 export interface FolderDTO { id: string; name: string; is_default: boolean; count: number }
 
 // ---------- helpers shared by server and UI ----------
-/** Bracket variables as in the spec: [Insert Topic]. Links like [text](url) and nested or empty brackets are ignored. */
-const BR_RE = /(?<!\[)\[([^\[\]\n]{2,60})\](?![(\]])/g;
-export function extractBracketVars(text: string): string[] {
-  const seen = new Set<string>();
-  for (const m of text.matchAll(BR_RE)) { const v = m[1]!.trim(); if (/\p{L}/u.test(v)) seen.add(v); }
-  return [...seen].slice(0, 20);
-}
-export function substituteBracketVars(text: string, values: Record<string, string>): string {
-  return text.replace(BR_RE, (m, name: string) => { const v = values[name.trim()]; return v !== undefined && v !== '' ? v : m; });
-}
+// Historical names kept for existing callers.
+export const extractBracketVars = (text: string) => extractPromptVariables(text).slice(0, 20);
+export const substituteBracketVars = fillPromptVariables;
 /** Rough token estimate without a tokenizer: about 4 Latin characters, or 2.5 Cyrillic characters, per token. Always shown as approximate. */
 export function estimateTokens(text: string): number {
   let latin = 0; let cyr = 0; let other = 0;
@@ -101,4 +106,3 @@ export function estimateTokens(text: string): number {
   }
   return Math.max(1, Math.ceil(latin / 4 + cyr / 2.5 + other * 0.8 + text.split(/\s+/).filter(Boolean).length * 0.1));
 }
-export function frameworkOf(preset: OptPreset): 'goal' | 'framework' { return (FRAMEWORK_PRESETS as readonly string[]).includes(preset) ? 'framework' : 'goal'; }

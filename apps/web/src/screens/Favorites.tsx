@@ -17,13 +17,13 @@ export function FavoritesScreen() {
   return (
     <div className="col" style={{ gap: 16 }}>
       <h1>{t.favorites.title}</h1>
-      <div className="glass card row wrap" style={{ gap: 12 }}>
-        <input className="inset-field" style={{ flex: '2 1 240px' }} value={q} placeholder={t.common.search} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} />
-        <select className="inset-field" style={{ flex: '1 1 150px' }} value={system} aria-label={t.gen.systems} onChange={(e) => setSystem(e.target.value as SystemId | '')}><option value="">{t.common.all}</option>{Object.entries(SYSTEM_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <div className="surface card row wrap" style={{ gap: 12 }}>
+        <input className="field" style={{ flex: '2 1 240px' }} value={q} placeholder={t.common.search} aria-label={t.common.search} onChange={(e) => setQ(e.target.value)} />
+        <select className="field" style={{ flex: '1 1 150px' }} value={system} aria-label={t.gen.systems} onChange={(e) => setSystem(e.target.value as SystemId | '')}><option value="">{t.common.all}</option>{Object.entries(SYSTEM_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </div>
       {!items ? <Skeletons /> : items.length === 0 ? <Empty title={t.favorites.empty} hint={t.favorites.emptyHint} /> : (
         <div className="grid-cards stagger">{items.map((r) => (
-          <article key={r.id} className="glass card hover col">
+          <article key={r.id} className="surface card hover col">
             <div className="row spread"><SystemChip id={r.skill_id} /><span className="small tx3">{fmtDate(r.created_at)}</span></div>
             <div className="prompt-box" style={{ maxHeight: 88, overflow: 'hidden' }}>{r.prompt_text.slice(0, 260)}</div>
             <p className="small tx3" style={{ margin: 0 }}>{r.raw_preview}</p>

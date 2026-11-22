@@ -41,3 +41,9 @@ Runs checkpoint to `refresh_runs`; after a restart the app resumes unfinished ru
 
 ## Backups
 The only state is `<DATA_DIR>/promptolog.db` (+ `-wal`/`-shm`) and `job_secret`. Copy them while the app is idle, or use `sqlite3 .backup`.
+
+## Release v1.2 verification
+
+Use the existing SQLite backup procedure before the release. Migration v3 adds the team library and text revisions on first boot. Verify a copy of a v2 database before changing the production origin. A data rollback should restore a consistent pre-release backup, which excludes edits made after that backup.
+
+In the Bitrix24 placement, open the application as a portal administrator, an assigned editor, an assigned reader and an employee without access. Publish one disposable prompt to a restricted test folder and verify discovery, use, editing and revision visibility. Open the same placement on a phone and check copying plus one external destination. Run generation, optimization and execution through the intended provider and check service quotas. Details live in the [workspace specification](docs/prompt-workspace.md).
