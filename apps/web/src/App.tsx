@@ -1,5 +1,5 @@
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Sparkles, History, LayoutTemplate, Star, Cpu, ScrollText, Settings as Cog, Wand2, PanelLeft, Sun, Moon, Monitor, MoreHorizontal } from 'lucide-react';
+import { History, LayoutTemplate, Star, Cpu, ScrollText, Settings as Cog, Wand2, Plus, PanelLeftClose, PanelLeftOpen, BarChart3, Sparkles, Library, Sun, Moon, Monitor, MoreHorizontal } from 'lucide-react';
 import type { Settings } from '../../../shared/src/index.ts';
 import { t } from './strings.ru.ts';
 import { get, onWake, ApiError } from './api.ts';
@@ -12,11 +12,17 @@ import { FavoritesScreen } from './screens/Favorites.tsx';
 import { SkillsScreen } from './screens/Skills.tsx';
 import { ReportsScreen } from './screens/Reports.tsx';
 import { SettingsScreen } from './screens/Settings.tsx';
+import { AnalyticsScreen } from './screens/Analytics.tsx';
+import { OptimizerScreen } from './screens/Optimizer.tsx';
+import { LibraryScreen } from './screens/Library.tsx';
 
-const NAV: { id: Screen; label: string; icon: typeof Sparkles }[] = [
-  { id: 'generator', label: t.nav.generator, icon: Wand2 }, { id: 'history', label: t.nav.history, icon: History }, { id: 'templates', label: t.nav.templates, icon: LayoutTemplate },
-  { id: 'favorites', label: t.nav.favorites, icon: Star }, { id: 'skills', label: t.nav.skills, icon: Cpu }, { id: 'reports', label: t.nav.reports, icon: ScrollText }, { id: 'settings', label: t.nav.settings, icon: Cog },
-];
+interface NavDef { id: Screen; label: string; icon: typeof Wand2; adminOnly?: boolean }
+const WORK: NavDef[] = [{ id: 'optimizer', label: t.nav.optimizer, icon: Sparkles }, { id: 'library', label: t.nav.library, icon: Library }, { id: 'history', label: t.nav.history, icon: History }, { id: 'favorites', label: t.nav.favorites, icon: Star }, { id: 'templates', label: t.nav.templates, icon: LayoutTemplate }];
+const SYSTEM: NavDef[] = [{ id: 'skills', label: t.nav.skills, icon: Cpu }, { id: 'reports', label: t.nav.reports, icon: ScrollText }, { id: 'analytics', label: t.analytics.nav, icon: BarChart3, adminOnly: true }];
+const NEW_PROMPT: NavDef = { id: 'generator', label: t.nav.new, icon: Plus };
+const SETTINGS: NavDef = { id: 'settings', label: t.nav.settings, icon: Cog };
+const ALL_SCREENS: Screen[] = ['generator', 'optimizer', 'library', 'history', 'favorites', 'templates', 'skills', 'reports', 'analytics', 'settings'];
+const parseHash = (): Screen => { const s = location.hash.replace('#/', '') as Screen; return ALL_SCREENS.includes(s) ? s : 'generator'; };
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage may be blocked in iframes */ } } };
 
 class Boundary extends Component<{ children: ReactNode }, { err: boolean }> {
@@ -24,17 +30,17 @@ class Boundary extends Component<{ children: ReactNode }, { err: boolean }> {
   static getDerivedStateFromError() { return { err: true }; }
   render() {
     if (!this.state.err) return this.props.children;
-    return <div className="empty glass" style={{ margin: 40 }}><h3>{t.boundary.title}</h3><button className="btn primary" style={{ marginTop: 14 }} onClick={() => this.setState({ err: false })}>{t.boundary.retry}</button></div>;
+    return <div className="empty glass" style={{ margin: 'var(--space-10)' }}><h3>{t.boundary.title}</h3><button className="btn primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => this.setState({ err: false })}>{t.boundary.retry}</button></div>;
   }
 }
 
-const Logo = () => <svg className="logo" viewBox="0 0 32 32" aria-hidden><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7C5CFF" /><stop offset="1" stopColor="#22D3EE" /></linearGradient></defs><path d="M16 2l12 7v14l-12 7L4 23V9z" fill="url(#lg)" /><path d="M16 9l1.8 4.6L22.5 15l-4.7 1.4L16 21l-1.8-4.6L9.5 15l4.7-1.4z" fill="#fff" opacity=".92" /></svg>;
+const Logo = () => <svg className="logo" viewBox="0 0 32 32" aria-hidden><path d="M16 2l12 7v14l-12 7L4 23V9z" fill="var(--color-accent)" /><path d="M16 9l1.8 4.6L22.5 15l-4.7 1.4L16 21l-1.8-4.6L9.5 15l4.7-1.4z" fill="var(--color-on-accent)" /></svg>;
 const initials = (n: string) => (n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('') || '•').toUpperCase();
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(() => (location.hash.replace('#/', '') as Screen) || 'generator');
+  const [screen, setScreen] = useState<Screen>(parseHash);
   const [me, setMe] = useState<Me | null>(null); const [settings, setSettingsState] = useState<Settings | null>(null); const [agent, setAgent] = useState<AgentStatus | null>(null);
-  const [authErr, setAuthErr] = useState(false); const [waking, setWaking] = useState(false); const [railOpen, setRailOpen] = useState(false); const [compact, setCompact] = useState(false); const [moreOpen, setMoreOpen] = useState(false);
+  const [authErr, setAuthErr] = useState(false); const [waking, setWaking] = useState(false); const [compact, setCompact] = useState(false); const [bodyW, setBodyW] = useState(1280); const [sidebarPref, setSidebarPref] = useState<'expanded' | 'collapsed' | null>(() => { const v = store.get('sidebar'); return v === 'expanded' || v === 'collapsed' ? v : null; }); const [moreOpen, setMoreOpen] = useState(false);
   const [prefill, setPrefillState] = useState<Prefill | null>(null); const [openGenerationId, setOpenGenerationId] = useState<string | null>(null);
   const [theme, setThemeState] = useState<'dark' | 'light' | 'system'>(() => (store.get('theme') as any) || 'dark');
   const shellRef = useRef<HTMLDivElement>(null);
@@ -47,7 +53,7 @@ export default function App() {
   }, []);
   useEffect(() => { reload(); const id = setInterval(() => get<AgentStatus>('/api/agent/status').then(setAgent).catch(() => {}), 60_000); return () => clearInterval(id); }, [reload]);
   useEffect(() => onWake(setWaking), []);
-  useEffect(() => { const ro = new ResizeObserver(([e]) => setCompact((e?.contentRect.width ?? 1000) < 800)); ro.observe(document.body); return () => ro.disconnect(); }, []);
+  useEffect(() => { const ro = new ResizeObserver(([e]) => { const w = e?.contentRect.width ?? 1000; setCompact(w < 800); setBodyW(w); }); ro.observe(document.body); return () => ro.disconnect(); }, []);
   useEffect(() => { // theme
     const apply = () => { const dark = theme === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; };
     apply(); const mq = matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', apply); return () => mq.removeEventListener('change', apply);
@@ -58,7 +64,9 @@ export default function App() {
     const send = () => { try { window.parent?.postMessage({ type: 'vibe:resize', height: Math.ceil(Math.max(el.scrollHeight, el.offsetHeight)) + 8 }, '*'); } catch { /* ignore */ } };
     const ro = new ResizeObserver(send); ro.observe(el); send(); return () => ro.disconnect();
   });
-  useEffect(() => { const h = () => { const s = location.hash.replace('#/', '') as Screen; if (NAV.some((n) => n.id === s)) setScreen(s); }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h); }, []);
+  const isAdmin = !!me?.is_admin; const meLoaded = me !== null;
+  useEffect(() => { const h = () => { const s = parseHash(); if (s === 'analytics' && !isAdmin) return; setScreen(s); }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h); }, [isAdmin]);
+  useEffect(() => { if (meLoaded && !isAdmin && screen === 'analytics') go('generator'); }, [meLoaded, isAdmin, screen, go]); // admin-only section: non-admins fall back to the generator
 
   const state: AppState = {
     me, settings, agent, go, prefill, reload, theme,
@@ -70,41 +78,74 @@ export default function App() {
   const agentLabel = !agent ? '…' : agent.paused_reason ? t.agent.paused : !agent.auto_refresh_enabled ? t.agent.off : agent.busy ? t.agent.busy : `${t.agent.active}${days !== null ? ` · ${t.agent.soon} ${days} ${t.agent.days}` : ''}`;
   const agentDot = !agent ? '' : agent.paused_reason ? 'warn' : !agent.auto_refresh_enabled ? '' : agent.busy ? 'run' : 'ok';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
-  const mainNav = compact ? NAV.slice(0, 4) : NAV; const moreNav = compact ? NAV.slice(4) : [];
+  const systemNav = SYSTEM.filter((n) => !n.adminOnly || isAdmin);
+  const flatNav = [NEW_PROMPT, ...WORK, ...systemNav, SETTINGS];
+  const mainNav = compact ? flatNav.slice(0, 4) : flatNav; const moreNav = compact ? flatNav.slice(4) : [];
+  const collapsed = !compact && (sidebarPref ? sidebarPref === 'collapsed' : bodyW < 1024);
+  const toggleSidebar = () => { const next = collapsed ? 'expanded' : 'collapsed'; setSidebarPref(next); store.set('sidebar', next); };
+  const themeLabel = `${t.nav.themeLabel}: ${t.settings.theme[theme]}`; const userName = me?.name ?? t.nav.userFallback;
+  const cycleTheme = () => state.setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark');
+  const navButton = (n: NavDef, extra = '') => <button key={n.id} className={`nav-item ${extra} ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} aria-label={collapsed ? n.label : undefined} title={n.label}><n.icon size={n.id === 'generator' ? 16 : 18} aria-hidden /><span className="nav-label">{n.label}</span></button>;
 
-  if (authErr) return <ToastProvider><div className="bg-layer"><div className="aurora a1" /><div className="aurora a2" /></div><div style={{ position: 'relative', zIndex: 1, padding: 40 }}><div className="empty glass"><Logo /><h3 style={{ marginTop: 12 }}>{t.appName}</h3><p className="tx2">{t.auth.required}</p></div></div></ToastProvider>;
+  if (authErr) return <ToastProvider><div style={{ padding: 'var(--space-10)' }}><div className="empty glass"><Logo /><h3 style={{ marginTop: 'var(--space-3)' }}>{t.appName}</h3><p className="tx2">{t.auth.required}</p></div></div></ToastProvider>;
 
   return (
     <AppCtx.Provider value={state}><ToastProvider>
-      <div className="bg-layer" aria-hidden><div className="aurora a1" /><div className="aurora a2" /><div className="aurora a3" /><div className="aurora a4" /><div className="grid" /><div className="noise" /></div>
       <div className={`shell ${compact ? 'compact' : ''}`} ref={shellRef}>
-        <nav className={`rail glass ${railOpen ? 'open' : ''}`} aria-label="Главное меню" onMouseEnter={() => !compact && setRailOpen(true)} onMouseLeave={() => setRailOpen(false)}>
-          <button className="nav-item" onClick={() => setRailOpen((v) => !v)} aria-label="Свернуть или развернуть меню"><PanelLeft size={20} /><span className="nav-label">{t.appName}</span></button>
-          {NAV.map((n) => <button key={n.id} className={`nav-item ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} title={n.label}><n.icon size={20} /><span className="nav-label">{n.label}</span></button>)}
-        </nav>
+        {!compact && (
+          <aside id="app-sidebar" className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label={t.nav.mainLabel}>
+            <div className="sidebar-head">
+              <Logo />{!collapsed && <span className="sidebar-name">{t.appName}</span>}
+              <button className="icon-btn" onClick={toggleSidebar} aria-expanded={!collapsed} aria-controls="app-sidebar" aria-label={collapsed ? t.nav.expand : t.nav.collapse} title={collapsed ? t.nav.expand : t.nav.collapse}>{collapsed ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}</button>
+            </div>
+            {navButton(NEW_PROMPT, 'nav-new')}
+            <div className="sidebar-group" role="group" aria-label={t.nav.groupWork}>
+              {!collapsed && <div className="sidebar-group-label">{t.nav.groupWork}</div>}
+              {WORK.map((n) => navButton(n))}
+            </div>
+            <div className="sidebar-group" role="group" aria-label={t.nav.groupSystem}>
+              {!collapsed && <div className="sidebar-group-label">{t.nav.groupSystem}</div>}
+              {systemNav.map((n) => navButton(n))}
+            </div>
+            <div className="sidebar-spacer" />
+            <div className="sidebar-foot">
+              {navButton(SETTINGS)}
+              <button className="nav-item status" onClick={() => go('reports')} aria-label={agentLabel} title={agentLabel}><span className={`dot ${agentDot}`} aria-hidden /><span className="nav-label">{agentLabel}</span></button>
+              <div className="sidebar-user">
+                <span className="avatar" title={userName} aria-label={userName}>{initials(me?.name ?? '')}</span>
+                {!collapsed && <span className="sidebar-username">{userName}</span>}
+                <button className="icon-btn" aria-label={themeLabel} title={themeLabel} onClick={cycleTheme}><ThemeIcon size={18} aria-hidden /></button>
+              </div>
+            </div>
+          </aside>
+        )}
         <div className="main">
-          <header className="topbar">
-            <Logo /><h2 style={{ fontSize: 20 }}>{t.appName}</h2><div className="grow" />
-            <button className="chip" onClick={() => go('reports')} aria-label={agentLabel} style={{ maxWidth: '55vw' }}><span className={`dot ${agentDot}`} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agentLabel}</span></button>
-            <button className="icon-btn" aria-label={`Тема: ${t.settings.theme[theme]}`} onClick={() => state.setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}><ThemeIcon size={18} /></button>
-            <span className="avatar" title={me?.name ?? ''} aria-label={me?.name ?? 'Пользователь'}>{initials(me?.name ?? '')}</span>
-          </header>
+          {compact && (
+            <header className="topbar">
+              <Logo /><h2 style={{ fontSize: 'var(--font-size-h3)' }}>{t.appName}</h2><div className="grow" />
+              <button className="icon-btn" onClick={() => go('reports')} aria-label={agentLabel} title={agentLabel}><span className={`dot ${agentDot}`} aria-hidden /></button>
+              <button className="icon-btn" aria-label={themeLabel} title={themeLabel} onClick={cycleTheme}><ThemeIcon size={18} aria-hidden /></button>
+              <span className="avatar" title={userName} aria-label={userName}>{initials(me?.name ?? '')}</span>
+            </header>
+          )}
           <main className="content">
             {agent?.paused_reason && <div className="banner err" role="alert"><span className="grow">{agent.paused_reason.startsWith('quota') ? t.banner.quota : t.banner.paused}</span></div>}
             {agent?.scheduler_mode === 'lazy' && <div className="banner warn"><span className="grow">{t.banner.fallback}</span></div>}
             <Boundary key={screen}>
               {screen === 'generator' && <GeneratorScreen />}{screen === 'history' && <HistoryScreen />}{screen === 'templates' && <TemplatesScreen />}
               {screen === 'favorites' && <FavoritesScreen />}{screen === 'skills' && <SkillsScreen />}{screen === 'reports' && <ReportsScreen />}{screen === 'settings' && <SettingsScreen />}
+              {screen === 'optimizer' && <OptimizerScreen />}{screen === 'library' && <LibraryScreen />}
+              {screen === 'analytics' && (meLoaded ? <AnalyticsScreen /> : <Spinner />)}
             </Boundary>
           </main>
         </div>
-        <nav className="bottom-tabs glass" aria-label="Навигация">
-          {mainNav.map((n) => <button key={n.id} className={`nav-item ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-label={n.label}><n.icon size={20} /><span>{n.label}</span></button>)}
-          {moreNav.length > 0 && <button className="nav-item" onClick={() => setMoreOpen(true)} aria-label={t.nav.more}><MoreHorizontal size={20} /><span>{t.nav.more}</span></button>}
+        <nav className="bottom-tabs" aria-label={t.nav.tabsLabel}>
+          {mainNav.map((n) => <button key={n.id} className={`nav-item ${screen === n.id ? 'on' : ''}`} onClick={() => go(n.id)} aria-current={screen === n.id ? 'page' : undefined} aria-label={n.label}><n.icon size={20} aria-hidden /><span>{n.label}</span></button>)}
+          {moreNav.length > 0 && <button className="nav-item" onClick={() => setMoreOpen(true)} aria-label={t.nav.more}><MoreHorizontal size={20} aria-hidden /><span>{t.nav.more}</span></button>}
         </nav>
-        {moreOpen && <Modal title={t.nav.more} onClose={() => setMoreOpen(false)}>{moreNav.map((n) => <button key={n.id} className="nav-item" onClick={() => go(n.id)}><n.icon size={20} />{n.label}</button>)}</Modal>}
+        {moreOpen && <Modal title={t.nav.more} onClose={() => setMoreOpen(false)}>{moreNav.map((n) => <button key={n.id} className="nav-item" onClick={() => go(n.id)}><n.icon size={20} aria-hidden />{n.label}</button>)}</Modal>}
       </div>
-      {waking && <div className="overlay" style={{ zIndex: 80 }} role="alert"><div className="glass dense empty" style={{ maxWidth: 420 }}><Logo /><h3 style={{ margin: '12px 0 6px' }}>{t.wake.title}</h3><p className="tx2" style={{ margin: '0 0 12px' }}>{t.wake.hint}</p><Spinner /></div></div>}
+      {waking && <div className="overlay" style={{ zIndex: 80 }} role="alert"><div className="glass dense empty" style={{ maxWidth: 420 }}><Logo /><h3 style={{ margin: 'var(--space-3) 0 var(--space-2)' }}>{t.wake.title}</h3><p className="tx2" style={{ margin: '0 0 var(--space-3)' }}>{t.wake.hint}</p><Spinner /></div></div>}
     </ToastProvider></AppCtx.Provider>
   );
 }

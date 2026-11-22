@@ -46,7 +46,7 @@ npm run pack:repomix              # refresh repomix-output.xml
 
 ## 6. Design system
 
-Before any UI task read `design.md` fully: Part I is the «Ноябрь» brief (light canvas, warm neutrals, one terracotta accent, floating composer); Addendum A maps it onto this app, holds the contrast-based token overrides, and lists open **[Decision]** items (D1–D5). Use the stated defaults for undecided items and list them in the report. The redesign is not implemented yet: the code still ships the v1.0 glassmorphism UI.
+Before any UI task read `design.md` fully: Part 0 is the canonical Obsidian / Linear Dark system (dark default, light sibling, indigo accent, tokens in `apps/web/src/styles/tokens.css`); Part I (the «Ноябрь» brief) and Addendum A keep structure, accessibility, engineering and QA rules, and their visual values are superseded. Decisions D1–D5 are resolved (D2 superseded: dark default). Tokens and the shell are implemented; the screens still use deprecated flat aliases (`glass`, `card`, `inset-field`) until migrated. Run `npm run audit:contrast` after any token change.
 
 ## 7. Patch-script standard
 

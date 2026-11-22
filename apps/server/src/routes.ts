@@ -13,6 +13,7 @@ import { config } from './config.ts';
 import { type Db, type Row, getSettings, setSettings, indexDoc, unindexDoc, searchDocs } from './db.ts';
 import { VibeError, type VibeClient } from './vibe.ts';
 import { resolveIdentity, rateLimit, type Identity } from './auth.ts';
+import { registerOptimizerRoutes } from './optimizer-routes.ts';
 import { AppError, uid, nowIso, jsonParse, log } from './util.ts';
 import { runGeneration, regenerateResult, rowToGeneration, rowToResult, extractJson, type GenEvent } from './generation.ts';
 import { getCurrentVersion, listVersions, skillToDto, rowToVersion, getVersionById } from './skills.ts';
@@ -83,6 +84,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const me = (req: FastifyRequest): Identity => req.identity!;
   const admin = (req: FastifyRequest): Identity => { const i = me(req); if (!i.isAdmin) throw new AppError(403, 'admin_required', 'Требуются права администратора'); return i; };
   const sysId = (v: unknown): SystemId => systemIdSchema.parse(v);
+  registerOptimizerRoutes(app, { db, vibe, me, admin });
 
   // ---- SSE helper ----
   function openSse(req: FastifyRequest, reply: FastifyReply, generationId?: string): { send: (e: GenEvent) => void; close: () => void } {

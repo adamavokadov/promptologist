@@ -1,6 +1,6 @@
 # HANDOFF (for the next AI agent)
 
-_Last scripted update: 2026-11-20. Release history: CHANGELOG.md._
+_Last scripted update: 2026-11-22. Release history: CHANGELOG.md._
 
 Dense reference. Paths are repo-relative. Language policy: code, comments, commits, docs in English; app UI (`apps/web/src/strings.ru.ts`), card explanations and chat reports to the owner in Russian.
 
@@ -115,6 +115,8 @@ Skill checklist markers: a line in `## Validation Checklist` may contain `` `has
 11. Template `language` supports only ru|en: the Spanish agent-graph template is flagged EN, so sending it to the generator selects English output. Spanish output is not a supported language.
 12. Repomix excludes `package-lock.json` by default, so repomix packs do not show the lockfile; it must stay committed (`npm ci` needs it).
 13. Floating composer vs the Bitrix24 iframe auto-height (`vibe:resize`): `position: fixed` and `100vh` anchor to the full-height frame, not to the visible window, so the Brief's fixed composer cannot be built correctly until the placement iframe height behavior is confirmed (design.md A6, conflict C1, decision D4).
+14. Optimizer engine contracts (unverified, see `shared/src/optimizer.ts`): model ids other than Anthropic's come from the product spec and are not confirmed against provider docs; default base URLs and request shapes of OpenAI-compatible, Google, Alibaba and Moonshot providers follow public documentation and were tested only with mocked fetch; outbound egress from the Alaio platform to third-party providers is unverified; the platform gateway model list (`GET /models`) is not used for the optimizer catalog.
+15. Optimizer scope gaps: reverse engineering takes pasted text or .txt/.md/.csv/.json files up to 200 KB, not images or documents (needs a verified vision contract); token savings are estimates, not provider counts; the Generator and Optimizer do not share history yet.
 
 ## 11. Runbook pointers
 Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: `node scripts/smoke.mjs --base http://127.0.0.1:$PORT --generate --jobs`.
@@ -141,6 +143,20 @@ Build/deploy/rollback/rotate/manual refresh/fallback: see OPERATIONS.md. Smoke: 
 19. Brief concepts without a counterpart in this app are not invented: the eight-stage stepper has no real data source (agent run steps are not exposed by any API; generation progress is three transient client states) and the composer has no attachment or voice controls. The `Stepper` is built only if the owner assigns a data source (design.md A5, decision D3).
 20. The contrast audit of the Brief tokens against WCAG 2.2 AA produced proposed overrides (design.md A4): secondary and muted text, accent fill with white text, success and warning text, control borders, Grok identity dot. Brief hex values stay in Part I as the reference; implementation uses the overrides once the owner confirms (D5).
 21. `agents.md` is the operating manual for AI agents; `CLAUDE.md` imports it for Claude Code; `docs/claude-project-instructions.md` is the text pasted into the Claude Project custom instructions. Keep the three consistent.
+22. D1 (2026-11-20): sidebar is expanded at 280px from 1024px up with an explicit collapse toggle to a 64px icon rail; state in localStorage key `sidebar` (try/catch); from 800 to 1023px the rail starts collapsed unless the user chose otherwise; under 800px bottom tabs and the «Ещё» sheet stay; hover expansion removed.
+23. D2 (2026-11-20): light is the default theme for users without a stored choice; dark/light/system switcher stays; hand-authored dark map lives in design.md A10 and `apps/web/src/styles/tokens.css`; `DEFAULT_SETTINGS.theme` changed to `light`; a saved user choice always wins.
+24. D3 (2026-11-20): the workflow stepper is not built (no real data source); no Stepper component and no fake stages.
+25. D4 (2026-11-20): the future Generator composer uses a sticky transparent wrapper at the bottom of the canvas (`position: sticky; bottom: var(--space-6)`, wrapper `pointer-events: none`, composer `pointer-events: auto`), not `position: fixed`; `vibe:resize` keeps working; resolves conflict C1 without a host contract. The composer itself is a later task.
+26. D5 (2026-11-20): all contrast overrides from design.md A4 are adopted, including `--color-control-border` for input boundaries, switches and checkboxes; `npm run audit:contrast` guards them.
+27. Analytics section (2026-11-20): admin-only nav entry `#/analytics` in the «Система» group; «Новый промпт» is the Generator entry (no duplicate Generator item).
+28. Design system (2026-11-21): Obsidian / Linear Dark (shadcn-style semantics on existing Tailwind and CSS) is canonical and recorded in design.md Part 0; the «Ноябрь» visual values are superseded, its structure, accessibility and QA rules stay. Tokens in `apps/web/src/styles/tokens.css`, dark and light hand-authored, guarded by `npm run audit:contrast`.
+29. Theme default (2026-11-21): dark is the default theme again (supersedes D2 of 2026-11-20); light and system stay; a stored user choice wins; `DEFAULT_SETTINGS.theme` is `dark`.
+30. No shadcn/ui or Radix packages (2026-11-21): the visual language is applied through existing CSS; adopting the packages needs an owner decision (no new dependencies without asking). Lucide icons use stroke width 1.75 via CSS.
+31. Contrast overrides of the Obsidian palette (2026-11-21): muted text `#8F8F99` (dark), accent hover `#4B57C0`, new `--color-accent-text` for links, `--color-control-border` for input boundaries; light-theme values are our own (design.md §0.4).
+32. Prompt Optimizer Pro (2026-11-22): a standalone «Оптимизатор» screen (`#/optimizer`) and «Библиотека» screen (`#/library`) sit next to the Generator; the Generator, its skills, templates, history and favorites are unchanged. Server code: `engine.ts`, `optimizer.ts`, `optimizer-routes.ts`, shared contracts in `shared/src/optimizer.ts`, migration v2 (`optimizations`, `folders`).
+33. Engine settings (2026-11-22): provider (platform gateway by default, anthropic, openai, google, alibaba, moonshot, custom OpenAI-compatible), model, Custom Base URL, temperature, API key. Admin-only writes; the key is AES-256-GCM encrypted with `ENGINE_SECRET` and never returned to the browser; keys cannot be saved without the secret; Custom Base URL must be https and may not point to private or link-local addresses (`ENGINE_ALLOW_PRIVATE=1` only for local proxies).
+34. Structured output (2026-11-22): every engine call is fenced (user text inside `<user_input>` as data), parsed from JSON, validated by zod, and re-asked once with the validation error; scores are clamped to 1..10 and are the model's own estimate. The language-bridge sentence is appended server-side, never trusted to the model.
+35. Compression (2026-11-22): the compressed prompt is accepted only if it keeps every [Variable] and is shorter by the approximate token estimate (no tokenizer dependency); otherwise the original is kept and the UI says so. Compression keeps the prompt language.
 
 ## 13. Conventions
 English identifiers and comments; Russian only in `strings.ru.ts`, seed templates and Russian meta-prompts. No UI strings outside `strings.ru.ts`. SQL only via prepared statements. zod validates every input. Commit style: imperative, phase-scoped (`phase 4: ...`). No stubs in working scenarios.
@@ -166,3 +182,6 @@ Add `--dry-run` after the subcommand to preview a diff. Patch scripts live in `p
 Applied patch scripts (newest last); sources in `patches/`.
 - 2026-11-20 2026-11-20-agent-graph-and-hygiene: agent-graph seed template, 9 seed templates in tests/smoke/docs, repo hygiene files, scripted docs tool
 - 2026-11-20 2026-11-20-design-system-docs: design.md (Ноябрь + Addendum A), agents.md, CLAUDE.md, Claude project instructions, docs placeholder cleanup
+- 2026-11-21 2026-11-21-noyabr-tokens-shell: «Ноябрь» tokens, flat primitives, collapsible sidebar shell, analytics nav entry (WP0-WP2); decisions D1-D5 resolved
+- 2026-11-21 2026-11-21-obsidian-design-system: Obsidian / Linear Dark becomes the canonical design system (tokens dark+light, density, docs)
+- 2026-11-22 2026-11-22-optimizer-pro: Prompt Optimizer Pro (engine settings, four workflows, scores, compression, library with folders)

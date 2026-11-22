@@ -26,6 +26,10 @@ export const config = {
   dataDir: resolveDataDir(),
   jobSecret: process.env.JOB_SECRET ?? '',
   jobSecretPrevious: process.env.JOB_SECRET_PREVIOUS ?? '',
+  /** Encrypts stored provider API keys (AES-256-GCM). Without it keys cannot be saved. */
+  engineSecret: process.env.ENGINE_SECRET ?? '',
+  /** Allow Custom Base URL on private networks and plain http (local proxies). Off by default. */
+  engineAllowPrivate: process.env.ENGINE_ALLOW_PRIVATE === '1',
   /** Local development only: skip Gateway identity (ignored when NODE_ENV=production). */
   devAuthBypass: process.env.DEV_AUTH_BYPASS === '1' && (process.env.NODE_ENV ?? 'development') !== 'production',
   staticDir: process.env.STATIC_DIR ?? path.resolve(process.cwd(), 'dist/public'),

@@ -56,7 +56,7 @@ function EditorModal({ tp, onClose, onSaved }: { tp: TemplateDTO | null; onClose
   const toast = useToast(); const [title, setTitle] = useState(tp?.title ?? ''); const [description, setDescription] = useState(tp?.description ?? ''); const [body, setBody] = useState(tp?.body ?? '');
   const [language, setLanguage] = useState<'ru' | 'en'>(tp?.language ?? 'ru'); const [systems, setSystems] = useState<SystemId[]>(tp?.default_systems ?? [...SYSTEM_IDS]); const [tags, setTags] = useState((tp?.tags ?? []).join(', ')); const [busy, setBusy] = useState(false);
   const bd = useRef<HTMLDivElement>(null); const vars = extractVariables(body); const tooMany = vars.length > LIMITS.maxTemplateVars;
-  const hl = body.split(/(\{\{\s*[a-z0-9_]+\s*\}\})/g).map((p, i) => (/^\{\{/.test(p) ? <mark key={i} style={{ background: 'rgba(124,92,255,.35)', color: 'transparent', borderRadius: 4 }}>{p}</mark> : <span key={i}>{p}</span>));
+  const hl = body.split(/(\{\{\s*[a-z0-9_]+\s*\}\})/g).map((p, i) => (/^\{\{/.test(p) ? <mark key={i} style={{ background: 'var(--color-accent-soft)', color: 'transparent', borderRadius: 4 }}>{p}</mark> : <span key={i}>{p}</span>));
   const toggle = (id: SystemId) => setSystems((s) => (s.includes(id) ? (s.length > 1 ? s.filter((x) => x !== id) : s) : [...s, id]));
   const save = async () => {
     setBusy(true); const payload = { title, description, body, language, default_systems: systems, tags: tags.split(',').map((x) => x.trim()).filter(Boolean) };

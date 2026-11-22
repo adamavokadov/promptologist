@@ -188,3 +188,5 @@ export function detectPromptLanguage(text: string): 'ru' | 'en' | 'mixed' {
   if (r < 0.15) return 'en';
   return 'mixed';
 }
+
+export * from './optimizer.ts';

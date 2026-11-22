@@ -66,6 +66,24 @@ CREATE INDEX idx_skills_next ON skills(next_check_at);
 CREATE INDEX idx_runs_skill ON refresh_runs(skill_id, started_at);
 CREATE INDEX idx_templates_user ON templates(user_id);
 `,
+  /* v2: prompt optimizer library (history, favorites, folders) */ `
+CREATE TABLE optimizations (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, workflow TEXT NOT NULL, status TEXT NOT NULL, raw_input TEXT NOT NULL,
+  options TEXT NOT NULL DEFAULT '{}', questions TEXT NOT NULL DEFAULT '[]', answers TEXT NOT NULL DEFAULT '[]',
+  initial_score REAL, initial_critique TEXT NOT NULL DEFAULT '', optimized_score REAL, changelog TEXT NOT NULL DEFAULT '[]',
+  final_prompt TEXT NOT NULL DEFAULT '', framework_used TEXT NOT NULL DEFAULT '', var_values TEXT NOT NULL DEFAULT '{}',
+  compressed_prompt TEXT, tokens_before INTEGER, tokens_after INTEGER, is_favorite INTEGER NOT NULL DEFAULT 0, favorited_at TEXT,
+  folder_id TEXT, tags TEXT NOT NULL DEFAULT '[]', provider TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '',
+  tokens_used INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+);
+CREATE INDEX idx_opt_user_created ON optimizations(user_id, created_at);
+CREATE INDEX idx_opt_folder ON optimizations(user_id, folder_id);
+CREATE TABLE folders (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, default_key TEXT, created_at TEXT NOT NULL,
+  UNIQUE(user_id, name)
+);
+CREATE INDEX idx_folders_user ON folders(user_id);
+`,
 ];
 
 export function openDb(file?: string): Db {

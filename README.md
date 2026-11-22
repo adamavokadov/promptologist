@@ -7,9 +7,10 @@ UI language: Russian. Generated prompts: RU or EN (user's choice). Explanations 
 ## Features
 - **Generator**: intent analysis, per-system transformation (2 in parallel), checklist validation with one repair call, SSE streaming with polling fallback, clarifying-questions mode, per-card regeneration with feedback and variant history, compare view.
 - **History / Favourites / Templates**: full-text search, filters, soft delete, favourites per prompt, templates with `{{variables}}`, LLM generalisation, 9 seed templates, JSON export and template import.
+- **Prompt optimizer**: four workflows (one-click, clarifier, bracket-variable templates, reverse engineering), goal and framework presets, output format and tone, RU-EN-RU bridge, scores with changelog, prompt compression, library with folders and search; engine settings with provider adapters (key encrypted by `ENGINE_SECRET`).
 - **Skills manager**: versions, server-side diff, rollback, pause, sources, changelog, manual refresh with cooldown.
 - **Agent**: dispatcher job with signature check and dedupe, random per-skill schedule, golden tests with a pairwise judge, canary and auto-rollback, reports, lazy fallback scheduler, budgets.
-- **Design**: neo-glassmorphism, dark/light/system themes, accessible, reduced-motion aware. The target design system («Ноябрь», light editorial workspace) is specified in `design.md` and is not implemented yet.
+- **Design**: Obsidian / Linear Dark design system (dark default, hand-authored light theme, system mode), flat surfaces on tokens, accessible, reduced-motion aware. Specified in `design.md` Part 0.
 
 ## Stack
 Node.js >= 22.5 (platform runtime `node24`), TypeScript, Fastify 5, built-in `node:sqlite` (FTS5 when present, LIKE otherwise), zod; React 18 + Vite + Tailwind 3, lucide-react, marked + DOMPurify, jsdiff (`diff`), self-hosted Manrope and JetBrains Mono (no CDN). No axios: global `fetch` only.
@@ -44,14 +45,14 @@ DEV_AUTH_BYPASS=1 npm run dev:server   &&   npm run dev:web
 | File | Purpose |
 |---|---|
 | `agents.md` | Operating manual for AI agents: language policy, hard rules, patch-script standard, QA, report format. `CLAUDE.md` imports it for Claude Code. |
-| `design.md` | Canonical UI specification («Ноябрь» brief v1.0 plus Addendum A for this app). Mandatory reading for UI work. |
+| `design.md` | Canonical UI specification (Obsidian / Linear Dark in Part 0; Part I and Addendum A keep structure, accessibility and QA rules). Mandatory reading for UI work. |
 | `HANDOFF.md` | Architecture, API, data model, decisions, open risks (maintained by `scripts/docs_update.py`). |
 | `OPERATIONS.md` | Deploy, verify, rotate, roll back. |
 | `CHANGELOG.md` | Release history (maintained by `scripts/docs_update.py`). |
 | `docs/claude-project-instructions.md` | Text for the Claude Project custom instructions. |
 
 ## Environment variables (names only; see `.env.example`)
-`VIBE_API_KEY` service key · `VIBE_APP_KEY` application key for identity · `VIBE_BASE_URL` · `VIBE_SERVER_ID` · `APP_PUBLIC_URL` · `DATA_DIR` · `JOB_SECRET` · `JOB_SECRET_PREVIOUS` · `NODE_ENV` · `PORT` (platform-injected) · `DEV_AUTH_BYPASS` (dev only) · `FRAME_ANCESTORS` (optional CSP override). All runtime-tunable options live in the `settings` table, not in env.
+`VIBE_API_KEY` service key · `VIBE_APP_KEY` application key for identity · `VIBE_BASE_URL` · `VIBE_SERVER_ID` · `APP_PUBLIC_URL` · `DATA_DIR` · `JOB_SECRET` · `JOB_SECRET_PREVIOUS` · `NODE_ENV` · `PORT` (platform-injected) · `DEV_AUTH_BYPASS` (dev only) · `FRAME_ANCESTORS` (optional CSP override). All runtime-tunable options live in the `settings` table, not in env. · `ENGINE_SECRET` · `ENGINE_ALLOW_PRIVATE` (names only)
 
 ## Project structure
 ```

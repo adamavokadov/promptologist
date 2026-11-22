@@ -8,13 +8,24 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - `design.md`: canonical «Ноябрь» design system (owner's AI-first brief v1.0, formatting normalised, wording unchanged) plus Addendum A: mapping to Promptologist screens, WCAG contrast audit with proposed token overrides, iframe/composer conflict, open decisions D1-D5, implementation map. The UI redesign itself is not implemented yet.
 - `agents.md`: operating manual for AI agents (language policy, hard rules, patch-script standard, Codespaces commands, UI QA, report format) and `CLAUDE.md` that imports it for Claude Code.
 - `docs/claude-project-instructions.md`: custom instructions text for the Claude Project.
+- Design tokens file `apps/web/src/styles/tokens.css` (light and hand-authored dark) and `npm run audit:contrast`.
+- Collapsible sidebar app shell with grouped navigation, and an admin-only «Аналитика» nav entry with a placeholder screen.
+- Prompt Optimizer Pro: four workflows (one-click, clarifier with three questions, bracket-variable templates, reverse engineering), beginner goals and pro frameworks including ASD-STE100, output format and tone selectors, RU-EN-RU language bridge, initial and optimized score with changelog, prompt compression with approximate token savings.
+- Library with automatic history, favorites, default and custom folders, tags and full-text search.
+- Engine settings (provider, model, Custom Base URL, temperature, encrypted API key) with a connection test; `ENGINE_SECRET` and `ENGINE_ALLOW_PRIVATE` environment variables.
 
 ### Changed
 - README.md: project documents section; the Design bullet points to the target design system.
 - `repomix.config.json`: patch scripts in the repo root (`patch_*.py`) are excluded from packs.
+- Light is now the default theme (`DEFAULT_SETTINGS.theme`); stored choices still win.
+- Primitives re-skinned flat on tokens: no glass, blur, gradients or aurora; `glass`, `card`, `inset-field` kept as deprecated flat aliases.
+- Design system switched to Obsidian / Linear Dark: new token palette (dark default and light), denser controls (32px), tighter radii, flat bordered surfaces, indigo accent; docs updated (design.md Part 0, README, agents.md).
+- `scripts/contrast-audit.mjs` now composites translucent tokens and checks status tints, accent text, elevated surfaces and the indigo viz ramp.
+- Default theme is dark again (`DEFAULT_SETTINGS.theme`); stored choices still win.
 
 ### Fixed
 - Removed placeholder entries (`...`, `id: summary`) that were written into CHANGELOG.md and HANDOFF.md by running the docs tool usage examples verbatim.
+- `npm run dev:server` now starts (`--experimental-transform-types`); parameter properties in `vibe.ts` are not supported by strip-only mode.
 
 ## [1.1.0] - 2026-11-20
 

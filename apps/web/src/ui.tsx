@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import { SYSTEM_NAMES, type SystemId } from '../../../shared/src/index.ts';
 import { t } from './strings.ru.ts';
 
-export const SYSTEM_COLORS: Record<SystemId, string> = { claude: '#D97757', chatgpt: '#10A37F', kimi: '#6E7CFF', qwen: '#7C3AED', grok: '#E5E7EB' };
+export const SYSTEM_COLORS: Record<SystemId, string> = { claude: 'var(--color-system-claude)', chatgpt: 'var(--color-system-chatgpt)', kimi: 'var(--color-system-kimi)', qwen: 'var(--color-system-qwen)', grok: 'var(--color-system-grok)' };
 export const SystemDot = ({ id }: { id: SystemId }) => <span className="dot" style={{ background: SYSTEM_COLORS[id] }} aria-hidden />;
 export const SystemChip = ({ id }: { id: SystemId }) => <span className="chip static"><SystemDot id={id} />{SYSTEM_NAMES[id]}</span>;
 
@@ -36,7 +36,7 @@ export function CopyButton({ text, label = t.common.copy, primary = false }: { t
     {done ? <Check size={15} /> : <Copy size={15} />}{label}</button>;
 }
 export const StarButton = ({ on, onClick }: { on: boolean; onClick: () => void }) => (
-  <button className="icon-btn" aria-label={on ? t.common.unfavorite : t.common.favorite} aria-pressed={on} onClick={onClick}><Star size={18} fill={on ? '#FBBF24' : 'none'} color={on ? '#FBBF24' : 'currentColor'} /></button>
+  <button className="icon-btn" aria-label={on ? t.common.unfavorite : t.common.favorite} aria-pressed={on} onClick={onClick}><Star size={18} fill={on ? 'var(--color-warning)' : 'none'} color={on ? 'var(--color-warning)' : 'currentColor'} /></button>
 );
 
 // ---- modal / drawer with focus trap and Esc ----

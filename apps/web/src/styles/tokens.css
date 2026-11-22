@@ -1,0 +1,178 @@
+/* Obsidian / Linear Dark design tokens (design.md Part 0, canonical since 2026-11-21).
+   Dark is the default and lives on :root[data-theme='dark']; light is :root[data-theme='light'];
+   both are hand-authored, never mechanical inversions. `system` sets data-theme at runtime from prefers-color-scheme.
+   Components read tokens only; literals live in this file. */
+
+:root, :root[data-theme='light'] {
+  color-scheme: light;
+
+  /* surfaces and text: light (zinc, cold undertone) */
+  --color-canvas: #FAFAFA;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #F4F4F5;
+  --color-elevated: #FFFFFF;
+  --color-text-primary: #09090B;
+  --color-text-secondary: #52525B;
+  --color-text-muted: #67676F;
+  --color-border: #E4E4E7;
+  --color-border-strong: #D4D4D8;
+  --color-control-border: #8A8A93;
+  --color-accent: #5E6AD2;
+  --color-accent-hover: #4F5BC4;
+  --color-accent-text: #4A55BA;
+  --color-accent-soft: #EEF0FB;
+  --color-on-accent: #FFFFFF;
+  --color-success-text: #047857;
+  --color-success-bg: rgba(4, 120, 87, 0.10);
+  --color-success-border: rgba(4, 120, 87, 0.20);
+  --color-warning: #9A4A06;
+  --color-warning-bg: rgba(154, 74, 6, 0.10);
+  --color-warning-border: rgba(154, 74, 6, 0.20);
+  --color-danger: #B91C1C;
+  --color-danger-bg: rgba(185, 28, 28, 0.10);
+  --color-danger-border: rgba(185, 28, 28, 0.20);
+  --color-info-bg: rgba(94, 106, 210, 0.10);
+  --color-info-border: rgba(94, 106, 210, 0.20);
+  --color-focus: var(--color-accent);
+  --color-scrim: rgba(9, 9, 11, 0.40);
+  --shadow-1: 0 1px 2px rgba(9, 9, 11, .06), 0 4px 12px rgba(9, 9, 11, .06);
+  --shadow-2: 0 8px 24px rgba(9, 9, 11, .10);
+
+  /* data visualization: light */
+  --viz-ramp-1: #EEF0FB;
+  --viz-ramp-2: #D2D7F4;
+  --viz-ramp-3: #A9B1EA;
+  --viz-ramp-4: #7C86DD;
+  --viz-ramp-5: #4F5BC4;
+  --viz-series-primary: var(--color-accent);
+  --viz-series-neutral: #8A8A93;
+  --viz-grid: var(--color-border);
+  --viz-axis-text: var(--color-text-muted);
+
+  /* spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* radius (tight, Linear-like) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 14px;
+  --radius-full: 9999px;
+
+  /* motion */
+  --duration-fast: 150ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* layout and density */
+  --sidebar-width: 280px;
+  --sidebar-width-collapsed: 64px;
+  --control-height: 32px;
+  --control-height-sm: 28px;
+
+  /* typography roles */
+  --font-size-display: 32px;
+  --font-size-h1: 24px;
+  --font-size-h2: 20px;
+  --font-size-h3: 16px;
+  --font-size-body: 14px;
+  --font-size-control: 13px;
+  --font-size-secondary: 13px;
+  --font-size-meta: 12px;
+  --font-size-metric: 32px;
+
+  /* per-system identity (always shown beside the system name) */
+  --color-system-claude: #D97757;
+  --color-system-chatgpt: #10A37F;
+  --color-system-kimi: #6E7CFF;
+  --color-system-qwen: #7C3AED;
+  --color-system-grok: var(--color-text-primary);
+
+  /* DESIGN.md names (owner's Obsidian spec) mapped to the canonical tokens above */
+  --bg-canvas: var(--color-canvas);
+  --bg-surface: var(--color-surface);
+  --bg-elevated: var(--color-elevated);
+  --border-subtle: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --accent-primary: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --status-success: var(--color-success-text);
+  --status-warning: var(--color-warning);
+  --status-error: var(--color-danger);
+
+  /* deprecated alias, remove when screens are migrated */
+  --bg: var(--color-canvas);
+  --glass: var(--color-surface);
+  --glass-strong: var(--color-surface-secondary);
+  --solid2: var(--color-surface-secondary);
+  --inset: var(--color-surface-secondary);
+  --solid: var(--color-surface);
+  --glass-border: var(--color-border);
+  --glass-hi: none;
+  --glass-shadow: none;
+  --tx: var(--color-text-primary);
+  --tx2: var(--color-text-secondary);
+  --tx3: var(--color-text-muted);
+  --accent1: var(--color-accent);
+  --accent2: var(--color-accent);
+  --ok: var(--color-success-text);
+  --warn: var(--color-warning);
+  --err: var(--color-danger);
+  --info: var(--color-text-secondary);
+  --diff-add: var(--color-success-bg);
+  --diff-del: var(--color-danger-bg);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-canvas: #09090B;
+  --color-surface: #111114;
+  --color-surface-secondary: #18181B;
+  --color-elevated: #18181B;
+  --color-text-primary: #FAFAFA;
+  --color-text-secondary: #A1A1AA;
+  --color-text-muted: #8F8F99;
+  --color-border: #27272A;
+  --color-border-strong: #3F3F46;
+  --color-control-border: #71717A;
+  --color-accent: #5E6AD2;
+  --color-accent-hover: #4B57C0;
+  --color-accent-text: #8B93E8;
+  --color-accent-soft: #1C1E33;
+  --color-on-accent: #FFFFFF;
+  --color-success-text: #10B981;
+  --color-success-bg: rgba(16, 185, 129, 0.10);
+  --color-success-border: rgba(16, 185, 129, 0.20);
+  --color-warning: #F59E0B;
+  --color-warning-bg: rgba(245, 158, 11, 0.10);
+  --color-warning-border: rgba(245, 158, 11, 0.20);
+  --color-danger: #EF4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.10);
+  --color-danger-border: rgba(239, 68, 68, 0.20);
+  --color-info-bg: rgba(94, 106, 210, 0.14);
+  --color-info-border: rgba(94, 106, 210, 0.28);
+  --color-scrim: rgba(0, 0, 0, 0.60);
+  --shadow-1: 0 4px 12px rgba(0, 0, 0, .40);
+  --shadow-2: 0 16px 48px rgba(0, 0, 0, .50);
+
+  --viz-ramp-1: #1C1E33;
+  --viz-ramp-2: #2C326B;
+  --viz-ramp-3: #3F4AA8;
+  --viz-ramp-4: #5E6AD2;
+  --viz-ramp-5: #8B93E8;
+  --viz-series-neutral: #8F8F99;
+}

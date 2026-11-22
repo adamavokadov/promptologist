@@ -5,6 +5,7 @@ import { t } from '../strings.ru.ts';
 import { get, post, put, ApiError } from '../api.ts';
 import { useApp } from '../context.tsx';
 import { Seg, Switch, ConfirmModal, useToast } from '../ui.tsx';
+import { EngineSettings } from '../components/EngineSettings.tsx';
 
 interface Model { id: string; name: string; free: boolean; pricing: unknown }
 export function SettingsScreen() {
@@ -47,6 +48,7 @@ export function SettingsScreen() {
         <div className="row wrap"><button className="btn" disabled={!admin} onClick={async () => { try { await post('/api/skills/refresh-all'); toast(t.skills.started, 'ok'); app.reload(); } catch (e) { toast((e as ApiError).message, 'err'); } }}><RefreshCw size={15} />{t.settings.checkAll}</button>
           {app.agent?.paused_reason && <button className="btn" disabled={!admin} onClick={async () => { await post('/api/settings/resume-agent'); app.reload(); }}>{t.banner.resume}</button>}</div>
       </Section>
+      <EngineSettings admin={admin} />
       <Section title={t.settings.notifications}><div className="row"><Switch on={s.notifications_enabled} disabled={!admin} onChange={(v) => save({ notifications_enabled: v })} label={t.settings.notifOn} /><span>{t.settings.notifOn}</span></div><p className="small tx3" style={{ margin: 0 }}>{t.settings.notifNote}</p></Section>
       <Section title={t.settings.appearance}><Seg label={t.settings.appearance} value={app.theme} onChange={app.setTheme} options={(['dark', 'light', 'system'] as const).map((v) => ({ value: v, label: t.settings.theme[v] }))} /></Section>
       <Section title={t.settings.data}>

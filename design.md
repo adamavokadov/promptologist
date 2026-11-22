@@ -8,6 +8,84 @@
 
 > **Repository notes.** This file is the canonical UI specification of Promptologist. **Part I** (everything up to Addendum A) is the owner's brief «Ноябрь» v1.0: its wording is unchanged, only the Markdown formatting was normalised (tables and lists were reformatted; numeric ranges use an en dash instead of `--`). **Addendum A** (end of file) maps the brief onto this codebase and records project-specific overrides and open decisions. Read both before any UI work. Code status: the redesign is **not implemented yet**; the application still ships the v1.0 neo-glassmorphism UI.
 
+> **Canonical system (2026-11-21): Obsidian / Linear Dark.** Read **Part 0** first. It supersedes the visual values of Part I and Addendum A4; structure, accessibility, engineering and QA rules below still apply.
+
+------------------------------------------------------------------------
+
+## 0. Canonical system: Obsidian / Linear Dark (2026-11-21)
+
+**Status.** This part is the canonical visual system of Promptologist. It supersedes the visual values of Part I (the «Ноябрь» warm light palette, terracotta accent, typography scale, radii, elevation and control skins) and the palette overrides in Addendum A4. Part I and Addendum A still govern structure and process: shell anatomy and responsive behavior, accessibility, engineering rules for AI agents, QA and the definition of done. Where Part 0 and Part I disagree, Part 0 wins. Token values live in `apps/web/src/styles/tokens.css`; `npm run audit:contrast` guards them.
+
+### 0.1 Philosophy
+Dark-first, high information density, minimal visual noise, micro-contrast. Layers are separated by 1px borders and small shifts of gray, not by shadows. Neutral zinc scale with a cold undertone and one electric indigo accent. The light theme is a hand-authored sibling with the same structure, not an inversion.
+
+### 0.2 Stack decision
+The visual language follows shadcn/ui on Tailwind with Radix-style semantics, **applied through the existing Tailwind and hand-written CSS**. `shadcn/ui` and `@radix-ui/*` packages are **not installed**: the rule "no new dependencies without asking" holds, and nothing in the current screens needs them. Adopting them later is an owner decision. Icons stay Lucide with a global stroke width of 1.75px (CSS `.lucide { stroke-width: 1.75 }`).
+
+### 0.3 Color tokens
+Components read only these tokens (no literals). Light is `:root` and `:root[data-theme='light']`; dark is `:root[data-theme='dark']`. `system` sets `data-theme` at runtime from `prefers-color-scheme`. **The default theme is dark** (this supersedes decision D2 of 2026-11-20, which set light); a stored user choice always wins.
+
+| Token | Dark (default) | Light |
+|---|---|---|
+| `--color-canvas` | `#FAFAFA` | `#FAFAFA` |
+| `--color-surface` | `#FFFFFF` | `#FFFFFF` |
+| `--color-surface-secondary` | `#F4F4F5` | `#F4F4F5` |
+| `--color-elevated` | `#FFFFFF` | `#FFFFFF` |
+| `--color-text-primary` | `#09090B` | `#09090B` |
+| `--color-text-secondary` | `#52525B` | `#52525B` |
+| `--color-text-muted` | `#67676F` | `#67676F` |
+| `--color-border` | `#E4E4E7` | `#E4E4E7` |
+| `--color-border-strong` | `#D4D4D8` | `#D4D4D8` |
+| `--color-control-border` | `#8A8A93` | `#8A8A93` |
+| `--color-accent` | `#5E6AD2` | `#5E6AD2` |
+| `--color-accent-hover` | `#4F5BC4` | `#4F5BC4` |
+| `--color-accent-text` | `#4A55BA` | `#4A55BA` |
+| `--color-accent-soft` | `#EEF0FB` | `#EEF0FB` |
+| `--color-on-accent` | `#FFFFFF` | `#FFFFFF` |
+| `--color-success-text` | `#047857` | `#047857` |
+| `--color-success-bg` | `rgba(4, 120, 87, 0.10)` | `rgba(4, 120, 87, 0.10)` |
+| `--color-success-border` | `rgba(4, 120, 87, 0.20)` | `rgba(4, 120, 87, 0.20)` |
+| `--color-warning` | `#9A4A06` | `#9A4A06` |
+| `--color-warning-bg` | `rgba(154, 74, 6, 0.10)` | `rgba(154, 74, 6, 0.10)` |
+| `--color-warning-border` | `rgba(154, 74, 6, 0.20)` | `rgba(154, 74, 6, 0.20)` |
+| `--color-danger` | `#B91C1C` | `#B91C1C` |
+| `--color-danger-bg` | `rgba(185, 28, 28, 0.10)` | `rgba(185, 28, 28, 0.10)` |
+| `--color-danger-border` | `rgba(185, 28, 28, 0.20)` | `rgba(185, 28, 28, 0.20)` |
+| `--color-info-bg` | `rgba(94, 106, 210, 0.10)` | `rgba(94, 106, 210, 0.10)` |
+| `--color-info-border` | `rgba(94, 106, 210, 0.20)` | `rgba(94, 106, 210, 0.20)` |
+| `--color-focus` | `var(--color-accent)` | `var(--color-accent)` |
+| `--color-scrim` | `rgba(9, 9, 11, 0.40)` | `rgba(9, 9, 11, 0.40)` |
+| `--shadow-1` | `0 1px 2px rgba(9, 9, 11, .06), 0 4px 12px rgba(9, 9, 11, .06)` | `0 1px 2px rgba(9, 9, 11, .06), 0 4px 12px rgba(9, 9, 11, .06)` |
+| `--shadow-2` | `0 8px 24px rgba(9, 9, 11, .10)` | `0 8px 24px rgba(9, 9, 11, .10)` |
+
+Status badges follow the owner's rule: background at 10% alpha of the status color, border at 20%, text in the status color (`--color-*-bg`, `--color-*-border`, text token). Dark status text is #10B981, #F59E0B, #EF4444 as specified; light status text is darker (#047857, #9A4A06, #B91C1C) to stay at 4.5:1 on the tint.
+
+Mapping of the owner's DESIGN.md names (also defined as aliases in `tokens.css`): `--bg-canvas` = `--color-canvas`, `--bg-surface` = `--color-surface`, `--bg-elevated` = `--color-elevated`, `--border-subtle` = `--color-border`, `--border-strong` = `--color-border-strong`, `--text-primary|secondary|muted` = `--color-text-*`, `--accent-primary` = `--color-accent`, `--accent-hover` = `--color-accent-hover`, `--status-success|warning|error` = `--color-success-text|warning|danger`.
+
+### 0.4 Contrast overrides of the owner's palette (adopted)
+| Token | Owner value | Problem (WCAG 2.2 AA) | Adopted |
+|---|---|---|---|
+| `--text-muted` (dark) | `#71717A` | 4.12:1 on canvas, 3.67:1 on elevated, below 4.5:1 for text | `--color-text-muted` `#8F8F99` |
+| `--accent-hover` (dark) | `#6E7BF2` | white label on it is 3.63:1 | `--color-accent-hover` `#4B57C0` (light theme `#4F5BC4`) |
+| accent as text | `#5E6AD2` on `#09090B` | 4.23:1 for links and tags | new `--color-accent-text` `#8B93E8` (light `#4A55BA`); the fill `#5E6AD2` stays (white label 4.70:1) |
+| input boundaries | `--border-subtle` `#27272A` | about 1.3:1, needs 3:1 for inputs, switches, checkboxes | `--color-control-border` `#71717A` (light `#8A8A93`); decorative dividers keep the subtle border |
+| light theme | not specified | needs its own values | table 0.3; muted `#67676F` (`#71717A` is 4.4:1 on `#F4F4F5`); warning `#9A4A06` (`#B45309` is 4.39:1 on its tint) |
+
+### 0.5 Typography, density, shape
+Manrope and JetBrains Mono stay (no new font dependency; Inter or Geist is a possible later owner decision). Body 14px, controls and secondary text 13px, meta 12px (nothing smaller), h1 24px, h2 20px, h3 16px, display 32px, metric 32px with tabular numerals. Control height 32px (compact 28px); touch layouts keep 44px tab targets. Radii: 4, 6, 8, 10, 14px (`--radius-sm` to `--radius-2xl`). Spacing scale unchanged (4px base).
+
+### 0.6 Elevation and surfaces
+Cards, panels, sidebar and inputs use borders and surface shifts only: canvas, surface (sidebar, cards, panels), elevated (modals, drawers, toasts, menus, hover fills). Shadow tokens exist only for overlays that float above content (`--shadow-1` toast and menus, `--shadow-2` modal and drawer). No gradients, blur or glow.
+
+### 0.7 Components
+Primary button: `--color-accent` fill, white label, hover `--color-accent-hover`. Secondary: surface fill, strong border. Ghost: transparent, hover fill. Danger: danger text with the danger border. Focus ring: 2px solid `--color-focus` with 2px offset on every focusable element. Selected nav item and tab: secondary surface fill and weight 600. The primary sidebar action uses the soft accent fill. Disabled controls use muted text and a quiet fill, never reduced opacity.
+
+### 0.8 Data visualization
+Indigo ramp `--viz-ramp-1` to `--viz-ramp-5` per theme. Cell text uses whichever of primary text, on-accent or canvas has the highest contrast (the audit enforces at least 4.5:1 for all five steps). The primary series uses `--color-accent`, the comparison series `--viz-series-neutral`. The analytics brief's references to «Ноябрь» tokens now resolve to the values in 0.3; its 28px page title becomes the h1 size in 0.5.
+
+### 0.9 Decisions status
+D1 (sidebar), D3 (no stepper), D4 (sticky composer wrapper) and D5 (contrast overrides, now table 0.4) stand. D2 is superseded: dark is the default theme, the switcher stays.
+
 ------------------------------------------------------------------------
 
 ## 1. Purpose and authority
@@ -730,7 +808,7 @@ future development work.**
 
 - **Addendum version:** 1.0 (2026-11-20). Project-specific, not part of Brief v1.0.
 - **Precedence:** the Brief governs visual language, tokens, component behavior and QA. This addendum governs how the Brief maps onto this codebase and holds the token overrides in A4. Where it deviates from the Brief it says so and gives the reason.
-- **[Decision] items** need the owner's confirmation. Until then, use the stated default and list the item in the implementation report (Brief §20).
+- **Decisions D1–D5 were resolved on 2026-11-20** (delegated by the owner); see the **Resolved** markers below. The "Also resolved" items: the «Новый промпт» primary action is the Generator entry in the sidebar (no duplicate Generator item), and the Analytics section is admin-only.
 
 ### A1. Scope and what must not be invented
 
@@ -759,13 +837,13 @@ The Brief was written for a document-production workspace (documents, an eight-s
 - UI strings live only in `apps/web/src/strings.ru.ts`.
 - Persisted identifiers are not renamed: screen ids, skill status (`fresh|due|running|failed|paused`), generation status, report verdicts, `Settings.theme` values (`dark|light|system`).
 - The helper class API (`btn`, `icon-btn`, `chip`, `badge`, `seg`, `switch`, `tab`, `banner`, `empty`, `modal`, `drawer`, `toast`, `row`, `col`) may be re-skinned in place to limit churn. Removed entirely: `glass`, `aurora`, `noise`, `grid`, `backdrop-filter`, gradient fills, the gradient logo and favicon, the hard-coded star color.
-- Theme **[Decision D2]**: the canonical theme is light. Default: light for new users; keep the dark/light/system switcher; a user's stored choice is respected. Dark needs a complete hand-authored token map (Brief §4: no mechanical inversion) that is added to this file when written. Changing the persisted default `theme: 'dark'` in `shared/src/index.ts` needs owner approval.
+- Theme **Resolved 2026-11-20 (D2):** light is the default theme for users who have no stored choice. The dark/light/system switcher stays and a saved user choice always wins. The hand-authored dark map is in A10. `DEFAULT_SETTINGS.theme` in `shared/src/index.ts` changes from `'dark'` to `'light'` (one line).
 
 ### A4. Token overrides from the contrast audit
 
-The Brief targets WCAG 2.2 AA (§16) and says subtle must not mean inaccessible (§4). Several Brief hex values fail that target. Ratios below are computed WCAG contrast ratios. The Brief values stay in Part I as the reference; implementation uses the overrides once the owner confirms (**[Decision D5]**).
+The Brief targets WCAG 2.2 AA (§16) and says subtle must not mean inaccessible (§4). Several Brief hex values fail that target. Ratios below are computed WCAG contrast ratios. The Brief values stay in Part I as the reference; implementation uses the overrides (**Resolved 2026-11-20 (D5):** all overrides in this table are adopted, including `--color-control-border` for input boundaries, switches and checkboxes).
 
-| Token | Brief | Problem | Override |
+| Token | Brief | Problem | Override (adopted 2026-11-20) |
 |---|---|---|---|
 | `--color-text-secondary` | `#77736C` | 4.40 on canvas, 4.18 on surface-secondary (needs 4.5) | `#5F5B54` (6.30 / 5.98) |
 | `--color-text-muted` | `#A19B91` | 2.57 on canvas, 2.45 on surface-secondary; fails for text such as upcoming labels, metadata, placeholders | `#716D66` (4.80 / 4.56) |
@@ -783,7 +861,7 @@ Rules that follow: never place accent-colored text on `--color-accent-soft` (use
 - The labels Редактура … Публикация belong to an article workflow that does not exist here.
 - The persisted agent run steps (`refresh_runs.step`: `plan`, `search`, `deep`, `analyze`, `validate`, `golden`, `apply`, then the final report) are not eight stages (`deep` is conditional) and no API or screen exposes them. Generation progress is three transient client states (analyze, transform, done).
 - Rule: never wire a stepper to fabricated or hard-coded state (Brief §9, §17).
-- **[Decision D3]** Default: the stepper is **not built** in the first implementation pass. Options for the owner: (1) skip it entirely; (2) expose agent run steps through a new read-only endpoint and show them in Reports (a business-logic change that needs separate approval); (3) use a compact variant for generation progress. If built, it is a presentational `Stepper` taking `steps: {id, label, state: 'done'|'current'|'upcoming'}[]` computed by the caller, with all Brief §9 visuals and the compact responsive mode.
+- **Resolved 2026-11-20 (D3):** the stepper is **not built**. There is no real data source, so no `Stepper` component and no fake stages are created. Options kept for a later decision: (1) skip it entirely; (2) expose agent run steps through a new read-only endpoint and show them in Reports (a business-logic change that needs separate approval); (3) use a compact variant for generation progress. If built, it is a presentational `Stepper` taking `steps: {id, label, state: 'done'|'current'|'upcoming'}[]` computed by the caller, with all Brief §9 visuals and the compact responsive mode.
 
 ### A6. Floating composer (Brief §10) and conflict C1
 
@@ -791,12 +869,12 @@ Rules that follow: never place accent-colored text on `--color-accent-soft` (use
 - Preserve: validation (`LIMITS.rawInputMin/Max`), loading and disabled states, the keyboard shortcut, prefill from History and Templates, focus handling.
 - The clarifying-questions block and the result cards stay on the canvas. Canvas bottom padding is the measured composer height plus twice the bottom offset (set a `--composer-h` variable with a `ResizeObserver`), not a fixed 180px.
 - Horizontal position derives from a `--sidebar-width` variable owned by the shell and updated on collapse. In compact mode (under 800px) the composer spans the viewport minus 16px side margins and sits above the bottom tabs and the safe area.
-- **Conflict C1 (iframe auto-height).** The app reports its full content height to the Bitrix24 parent. In an auto-height iframe, `position: fixed; bottom` and `100vh` refer to the full-height frame, not to the window the user sees, so the composer would sit at the end of a long page, off screen. Sticky positioning fails the same way because the parent page scrolls, not the iframe.
-- **[Decision D4]** Resolve before building the composer; all other parts of the redesign can proceed without it. Ask the owner whether the placement iframe has a fixed height. If yes: make the shell `height: 100dvh` with internal scroll in the canvas, stop reporting oversized `vibe:resize` heights, and use the fixed composer from the Brief. If no: render the composer in flow at the end of the canvas as an independent, centered surface with no band or divider, and record this as a deviation. Never fix it with an extra full-width wrapper or by hiding overflow (Brief §17). Test inside a real Bitrix24 placement or a local iframe harness that listens for `vibe:resize`, not only in standalone Vite.
+- **Conflict C1 (iframe auto-height).** The app reports its full content height to the Bitrix24 parent. In an auto-height iframe, `position: fixed; bottom` and `100vh` refer to the full-height frame, not to the window the user sees, so the composer would sit at the end of a long page, off screen. Sticky positioning degrades gracefully instead (see D4): the composer floats only where the frame itself scrolls.
+- **Resolved 2026-11-20 (D4):** the future Generator composer uses a sticky, transparent wrapper at the bottom of the canvas (`position: sticky; bottom: var(--space-6)`; the wrapper has no background and `pointer-events: none`, the composer itself has `pointer-events: auto`), not `position: fixed`. `vibe:resize` keeps working. In a scrolling iframe the composer floats as in the Brief; in an auto-height iframe it degrades to the end of the content. No host contract is needed. The composer is built in a later task; this item only records the decision.
 
 ### A7. Sidebar and breakpoints
 
-- **[Decision D1]** Default: sidebar expanded at 280px from 1024px up, with an explicit collapse toggle to a 64px icon rail (state kept in `localStorage` inside `try/catch`); no hover expansion. From 800 to 1023px the rail starts collapsed. Under 800px the existing bottom tabs with the «Ещё» sheet stay (the Brief allows a compact navigation pattern). The existing `compact` flag (body width under 800px) is kept.
+- **Resolved 2026-11-20 (D1):** sidebar expanded at 280px from 1024px up, with an explicit collapse toggle to a 64px icon rail (state kept in `localStorage` inside `try/catch`); no hover expansion. From 800 to 1023px the rail starts collapsed. Under 800px the existing bottom tabs with the «Ещё» sheet stay (the Brief allows a compact navigation pattern). The existing `compact` flag (body width under 800px) is kept.
 
 ### A8. Implementation map and suggested order
 
@@ -817,5 +895,9 @@ Suggested order: tokens and primitives, shell and sidebar, screen canvases, comp
 - [ ] Contrast overrides from A4 applied and the audit repeated on rendered output.
 - [ ] No `glass`, `backdrop-filter`, gradient fill, aurora, noise or grid remains.
 - [ ] `npm run build` and `npm test` pass; no server, shared or test files changed unless assigned.
-- [ ] Decisions D1–D5 answered or the used defaults listed in the report; C1 outcome recorded in HANDOFF through `scripts/docs_update.py`.
+- [x] Decisions D1–D5 resolved on 2026-11-20 and recorded in HANDOFF through `scripts/docs_update.py`; D4 outcome: sticky composer wrapper (A6).
 - [ ] Before and after screenshots at 2048, 1440, 1280 and 390px attached to the chat report (not committed unless asked).
+
+### A10. Token values
+
+Superseded on 2026-11-21 by Part 0 §0.3. The source of truth is `apps/web/src/styles/tokens.css` (dark default on `:root[data-theme='dark']`, light on `:root`). The «Ноябрь» values that were listed here are retired.

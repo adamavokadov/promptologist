@@ -30,7 +30,7 @@ export function FavoritesScreen() {
             <div className="row wrap"><CopyButton text={r.prompt_text} primary />
               <button className="btn sm" onClick={() => app.openGeneration(r.generation_id)}><ExternalLink size={14} />{t.favorites.open}</button>
               <button className="btn sm" onClick={() => setTpl(r)}><FilePlus2 size={14} />{t.common.toTemplate}</button>
-              <button className="icon-btn" aria-label={t.common.unfavorite} onClick={() => unstar(r)}><Star size={18} fill="#FBBF24" color="#FBBF24" /></button></div>
+              <button className="icon-btn" aria-label={t.common.unfavorite} onClick={() => unstar(r)}><Star size={18} fill="var(--color-warning)" color="var(--color-warning)" /></button></div>
           </article>))}</div>)}
       {tpl && <TemplateSaveModal prompt={tpl.prompt_text} language={tpl.language} systems={[tpl.skill_id]} onClose={() => setTpl(null)} />}
     </div>
